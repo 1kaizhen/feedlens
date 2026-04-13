@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="popup.css" />
+  <title>FeedLens</title>
+</head>
+<body>
+  <div class="popup">
+    <header class="header">
+      <div class="header-left">
+        <h1 class="title">FeedLens</h1>
+      </div>
+      <label class="power-toggle">
+        <input type="checkbox" id="power-toggle" checked />
+        <span class="toggle-slider"></span>
+      </label>
+    </header>
+
+    <div id="onboarding-message" class="onboarding-message" style="display: none;">
+      Pick at least one topic to start filtering your feed
+    </div>
+
+    <section class="topics">
+      <div id="topic-chips" class="chip-container"></div>
+    </section>
+
+    <section id="keywords-section" class="keywords-section" style="display: none;">
+      <div class="keywords-header">
+        <span class="keywords-title">Keywords</span>
+        <button id="keywords-toggle-all" class="keywords-toggle-all">Deselect all</button>
+      </div>
+      <div id="keyword-chips" class="keyword-chip-container"></div>
+    </section>
+
+    <section class="mode-section">
+      <div class="segmented-control">
+        <button class="mode-btn active" data-mode="dim">Dim</button>
+        <button class="mode-btn" data-mode="hide">Hide</button>
+      </div>
+    </section>
+
+    <footer class="stats-bar">
+      <span id="stats-scanned">0 scanned</span>
+      <span class="stats-sep">&middot;</span>
+      <span id="stats-relevant">0 relevant</span>
+      <span class="stats-sep">&middot;</span>
+      <span id="stats-filtered">0 filtered</span>
+    </footer>
+  </div>
+
+  <script type="module" src="popup.ts"></script>
+</body>
+</html>
