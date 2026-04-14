@@ -4,6 +4,9 @@ export interface TweetData {
   authorHandle: string;
   hasMedia: boolean;
   isRetweet: boolean;
+  postedAt?: string;  // ISO datetime from <time> element
+  likes?: number;
+  views?: number;
 }
 
 export interface ScoreResponse {

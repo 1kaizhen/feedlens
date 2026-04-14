@@ -200,7 +200,6 @@ async function handleMessage(
       ) {
         aiEngine.enqueue({ tweetId, text, tabId: sender.tab.id });
       }
-
       return response;
     }
 

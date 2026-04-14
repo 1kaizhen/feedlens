@@ -286,7 +286,6 @@ async function updateStatsDisplay(): Promise<void> {
   statsRelevant.textContent = `${stats.relevant} relevant`;
   statsFiltered.textContent = `${stats.filtered} filtered`;
 }
-
 function renderSidebarToggle(): void {
   sidebarToggle.classList.toggle('active', preferences.sidebarVisible);
 

@@ -19,7 +19,7 @@ Vitest is configured inline in `vite.config.ts` (globals: true, jsdom environmen
 
 ## Architecture
 
-FeedLens is a Chrome Extension (Manifest V3) that filters Twitter/X feeds by topic relevance using keyword matching. Three isolated runtime contexts communicate via `chrome.runtime.sendMessage`:
+FeedLens is a Chrome Extension (Manifest V3) that filters Twitter/X feeds by topic relevance using keyword matching with an optional AI layer. Three isolated runtime contexts communicate via `chrome.runtime.sendMessage`:
 
 ```
 ┌─────────────┐   SCORE_TWEET      ┌──────────────────┐
@@ -29,14 +29,14 @@ FeedLens is a Chrome Extension (Manifest V3) that filters Twitter/X feeds by top
 │              │                    │  scoring-engine   │
 │ tweet-parser │   GET/SAVE_PREFS   │  topic-keywords   │
 │ dom-modifier │──────────────────→ │  LRU cache        │
-│ feedback     │   SUBMIT_FEEDBACK  │                   │
-│ onboarding   │   GET_STATS        │                   │
-│ sidebar/     │                    │                   │
+│ feedback     │   SUBMIT_FEEDBACK  │  ai-scoring       │
+│ onboarding   │   GET_STATS        │  keyword weights  │
+│ sidebar/     │←── AI_SCORE_UPDATE │  author rep.      │
 └─────────────┘                    └──────────────────┘
                                           ↕
 ┌─────────────┐   GET/SAVE_PREFS   chrome.storage.local
 │   Popup UI  │──────────────────→  (preferences, stats,
-│ (popup.html)│   GET_STATS          feedback)
+│ (popup.html)│   GET_STATS          feedback, weights)
 └─────────────┘
 ```
 
@@ -44,7 +44,7 @@ FeedLens is a Chrome Extension (Manifest V3) that filters Twitter/X feeds by top
 
 **Sidebar** (`src/content/sidebar/`) — Fixed right panel (380px) showing scored tweets. Uses a pub/sub store pattern (`sidebar-store.ts`) holding up to 500 entries (FIFO, deduplicated by tweetId). The store is in-memory only (cleared on page refresh). `sidebar-tweet-card.ts` renders each tweet with a color-coded score badge. Clicking a card scrolls to the tweet in the main feed. Visibility is toggled via `UserPreferences.sidebarVisible` and persisted to storage.
 
-**Service Worker** (`src/background/`) — Message hub. Scores tweets using keyword matching against selected topics. Uses an in-memory LRU cache (2000 entries, lost on SW sleep — acceptable). Tracks session stats.
+**Service Worker** (`src/background/`) — Message hub. Scores tweets using keyword matching against selected topics. Uses an in-memory LRU cache (2000 entries, lost on SW sleep — acceptable). Tracks session stats. Also manages the AI scoring engine and feedback-driven learning.
 
 **Popup** (`src/popup/`) — Settings UI. Topic chip selection, dim/hide mode toggle, power switch, stats display. All changes written to `chrome.storage.local`; content scripts react via `chrome.storage.onChanged`.
 
@@ -69,6 +69,19 @@ Final score = MAX across all selected topics.
 
 **Per-topic keyword filtering:** `UserPreferences.selectedKeywords` is a `Record<string, string[]>`. If a topic has no entry, ALL its keywords are active. If it has an entry, only those specific keywords/context terms are used.
 
+## AI Scoring Layer
+
+`src/background/ai-scoring.ts` — `AiScoringEngine` runs alongside keyword scoring. When `UserPreferences.aiConfig.enabled` is true and an API key is set, tweets are batched (up to 10) and sent to OpenRouter (`elephantai/elephant-alpha` model) for LLM-based scoring. The AI result arrives asynchronously via `AI_SCORE_UPDATE` message back to the content script's tab. Rate limited to 1 request per 3 seconds; daily budget capped at 50 (free) or 1000 (paid) requests, reset via a `chrome.alarms` hourly wakeup.
+
+## Feedback-Driven Learning
+
+When users submit feedback (`SUBMIT_FEEDBACK`), the service worker:
+1. Stores the entry in `chrome.storage.local` (capped at 500 FIFO)
+2. Updates `AuthorReputation` for the tweet's author (capped at 0.15 score bonus/penalty)
+3. Recomputes `KeywordWeights` from all feedback — weight range `[0.3, 1.5]`, requires ≥ 3 feedback entries per keyword before weighting kicks in
+4. Invalidates the LRU score cache so re-scoring picks up new weights
+
+Weights are keyed as `"topicId::keyword"` in `KeywordWeights` (a `Record<string, KeywordWeight>`).
 ## Key Implementation Details
 
 - All content CSS uses `!important` to override Twitter's styles
@@ -79,6 +92,8 @@ Final score = MAX across all selected topics.
 - Content script queues tweets in batches of 10 via `Promise.all`
 - `window.dispatchEvent(new CustomEvent('feedlens:reprocess'))` triggers full re-scan (used by "Resume filtering" button)
 - Sidebar uses CSS class `feedlens-sidebar-active` on `<body>` to shift the main feed layout
+- `UserPreferences.blockedKeywords` — global blocklist; any match forces score to 0
+- `UserPreferences.customKeywords` — per-topic user-defined primary keywords and context terms, merged with built-in `topic-keywords.ts` at scoring time
 
 ## Testing
 

@@ -155,7 +155,6 @@ async function processTweet(article: Element): Promise<void> {
     if (response.score < 0.3 && currentFilterMode === 'dim') {
       trackDimmedTweet(article);
     }
-
     if (currentFilterMode === 'hide') {
       const hiddenCount = document.querySelectorAll('.feedlens-hidden').length;
       updateHiddenBanner(hiddenCount);
@@ -163,14 +162,18 @@ async function processTweet(article: Element): Promise<void> {
 
     injectFeedbackOverlay(article, tweetData, response.matchedTopics, response.matchedKeywords);
 
-    // Push to sidebar store
-    addEntry({
-      ...tweetData,
-      score: response.score,
-      matchedTopics: response.matchedTopics,
-      matchedKeywords: response.matchedKeywords,
-      timestamp: Date.now(),
-    });
+    // Only show in sidebar if score > 5/10 (normalized: > 0.5)
+    if (response.score > 0.5) {
+      addEntry({
+        ...tweetData,
+        score: response.score,
+        matchedTopics: response.matchedTopics,
+        matchedKeywords: response.matchedKeywords,
+        timestamp: Date.now(),
+        aiScore: response.aiScore,
+        aiReasoning: response.aiReasoning,
+      });
+    }
   } catch {
     // Service worker might have restarted, skip this tweet
   }
