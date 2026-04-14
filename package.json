@@ -1,0 +1,26 @@
+{
+  "name": "feedlens",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@crxjs/vite-plugin": "^2.0.0-beta.33",
+    "@types/chrome": "^0.1.40",
+    "eslint": "^10.2.0",
+    "jsdom": "^29.0.2",
+    "prettier": "^3.8.2",
+    "typescript": "~6.0.2",
+    "vite": "^8.0.4",
+    "vitest": "^4.1.4"
+  },
+  "dependencies": {
+    "@openrouter/sdk": "^0.12.3"
+  }
+}
