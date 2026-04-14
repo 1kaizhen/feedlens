@@ -1,4 +1,4 @@
-import type { ScoreResponse } from '../shared/types';
+import type { ScoreResponse, ScoringOptions } from '../shared/types';
 import { TOPIC_CATEGORIES } from './topic-keywords';
 
 export function escapeRegex(str: string): string {
@@ -20,24 +20,43 @@ export function normalizeTweetText(text: string): string {
 
 export function matchesKeyword(text: string, keyword: string): boolean {
   const lower = keyword.toLowerCase();
-  if (lower.length <= 3) {
-    const regex = new RegExp(`\\b${escapeRegex(lower)}\\b`, 'i');
-    return regex.test(text);
-  }
-  return text.includes(lower);
+  const regex = new RegExp(`\\b${escapeRegex(lower)}\\b`, 'i');
+  return regex.test(text);
 }
 
-/**
- * @param selectedKeywords - optional per-topic keyword filter.
- *   Key = topicId, value = array of keywords to match against.
- *   If a topic has no entry, ALL its keywords + contextTerms are used.
- */
+export function extractHashtags(text: string): string[] {
+  const matches = text.match(/#\w+/g);
+  if (!matches) return [];
+  return matches.map((tag) => tag.slice(1).toLowerCase());
+}
+
 export function scoreTweet(
   text: string,
   selectedTopicIds: string[],
-  selectedKeywords?: Record<string, string[]>
+  options?: ScoringOptions
 ): ScoreResponse {
+  const {
+    selectedKeywords,
+    blockedKeywords,
+    keywordWeights,
+    customKeywords,
+    authorBonus,
+  } = options ?? {};
+
   const normalized = normalizeTweetText(text);
+
+  // Phase 1B: blocked keywords — immediate score 0
+  if (blockedKeywords && blockedKeywords.length > 0) {
+    for (const blocked of blockedKeywords) {
+      if (matchesKeyword(normalized, blocked)) {
+        return { score: 0, matchedTopics: [], matchedKeywords: [] };
+      }
+    }
+  }
+
+  // Phase 1A: extract hashtags from raw text before normalization
+  const hashtags = extractHashtags(text);
+
   let bestScore = 0;
   const matchedTopics: string[] = [];
   const matchedKeywords: string[] = [];
@@ -46,51 +65,102 @@ export function scoreTweet(
     const topic = TOPIC_CATEGORIES.find((t) => t.id === topicId);
     if (!topic) continue;
 
+    // Phase 3: merge custom keywords
+    const custom = customKeywords?.[topicId];
+    const allKeywords = [...topic.keywords, ...(custom?.keywords ?? [])];
+    const allContext = [...topic.contextTerms, ...(custom?.contextTerms ?? [])];
+
     // Determine which keywords/context terms are active
     const activeSet = selectedKeywords?.[topicId];
     const activeKeywords = activeSet
-      ? topic.keywords.filter((kw) => activeSet.includes(kw))
-      : topic.keywords;
+      ? allKeywords.filter((kw) => activeSet.includes(kw))
+      : allKeywords;
     const activeContext = activeSet
-      ? topic.contextTerms.filter((ct) => activeSet.includes(ct))
-      : topic.contextTerms;
+      ? allContext.filter((ct) => activeSet.includes(ct))
+      : allContext;
 
     let topicScore = 0;
+    const topicMatchedKeywords: string[] = [];
 
-    // Check primary keywords first
+    // Check primary keywords
     let primaryMatch = false;
     for (const kw of activeKeywords) {
       if (matchesKeyword(normalized, kw)) {
-        topicScore = 1.0;
         primaryMatch = true;
-        matchedKeywords.push(kw);
+        topicMatchedKeywords.push(kw);
         break;
       }
     }
 
-    // If no primary match, check context terms
-    if (!primaryMatch) {
-      let contextCount = 0;
-      for (const ct of activeContext) {
-        if (matchesKeyword(normalized, ct)) {
-          contextCount++;
-          matchedKeywords.push(ct);
+    // Always check context terms
+    let contextCount = 0;
+    for (const ct of activeContext) {
+      if (matchesKeyword(normalized, ct)) {
+        contextCount++;
+        topicMatchedKeywords.push(ct);
+
+        // Phase 1A: if context term appears as hashtag, promote to primary
+        if (!primaryMatch && hashtags.includes(ct.toLowerCase())) {
+          primaryMatch = true;
         }
       }
-      if (contextCount >= 2) {
-        topicScore = 0.5;
-      } else if (contextCount === 1) {
-        topicScore = 0.3;
+    }
+
+    // Also check: if a primary keyword appears as hashtag but wasn't matched
+    // in normalized text (e.g., single-word hashtag)
+    if (!primaryMatch) {
+      for (const kw of activeKeywords) {
+        if (hashtags.includes(kw.toLowerCase())) {
+          primaryMatch = true;
+          if (!topicMatchedKeywords.includes(kw)) {
+            topicMatchedKeywords.push(kw);
+          }
+          break;
+        }
       }
+    }
+
+    // Corroboration-based scoring
+    if (primaryMatch && contextCount >= 1) {
+      topicScore = 1.0;
+    } else if (primaryMatch) {
+      topicScore = 0.6;
+    } else if (contextCount >= 3) {
+      topicScore = 0.5;
+    } else if (contextCount >= 2) {
+      topicScore = 0.3;
+    } else if (contextCount === 1) {
+      topicScore = 0.1;
+    }
+
+    // Phase 2: apply keyword weights
+    if (topicScore > 0 && keywordWeights && topicMatchedKeywords.length > 0) {
+      let weightSum = 0;
+      let weightCount = 0;
+      for (const kw of topicMatchedKeywords) {
+        const key = `${topicId}::${kw}`;
+        const entry = keywordWeights[key];
+        weightSum += entry ? entry.weight : 1.0;
+        weightCount++;
+      }
+      const avgWeight = weightSum / weightCount;
+      topicScore = Math.min(1.0, topicScore * avgWeight);
     }
 
     if (topicScore > 0) {
       matchedTopics.push(topicId);
     }
 
+    matchedKeywords.push(...topicMatchedKeywords);
+
     if (topicScore > bestScore) {
       bestScore = topicScore;
     }
+  }
+
+  // Phase 4: author reputation bonus
+  if (authorBonus !== undefined && bestScore > 0) {
+    bestScore = Math.max(0, Math.min(1.0, bestScore + authorBonus));
   }
 
   return {

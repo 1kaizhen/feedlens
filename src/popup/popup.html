@@ -12,15 +12,44 @@
       <div class="header-left">
         <h1 class="title">FeedLens</h1>
       </div>
-      <label class="power-toggle">
-        <input type="checkbox" id="power-toggle" checked />
-        <span class="toggle-slider"></span>
-      </label>
+      <div class="header-right">
+        <button id="sidebar-toggle" class="sidebar-toggle" title="Toggle sidebar">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <rect x="1" y="2" width="14" height="12" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/>
+            <line x1="10" y1="2" x2="10" y2="14" stroke="currentColor" stroke-width="1.5"/>
+          </svg>
+        </button>
+        <label class="power-toggle">
+          <input type="checkbox" id="power-toggle" checked />
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
     </header>
 
     <div id="onboarding-message" class="onboarding-message" style="display: none;">
       Pick at least one topic to start filtering your feed
     </div>
+
+    <section class="ai-section">
+      <div class="ai-header">
+        <span class="ai-title">AI Scoring</span>
+        <label class="ai-toggle">
+          <input type="checkbox" id="ai-toggle" />
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <textarea id="ai-agenda" class="ai-agenda" placeholder="What are you looking for today? e.g. 'React component libraries, UI design inspiration, Claude AI updates'" rows="3"></textarea>
+      <div class="ai-budget">
+        <span id="ai-budget-text">0/50 requests used today</span>
+        <div class="ai-budget-bar">
+          <div id="ai-budget-fill" class="ai-budget-fill"></div>
+        </div>
+      </div>
+      <div class="ai-api-key-row">
+        <input type="password" id="ai-api-key" class="text-input" placeholder="sk-or-..." />
+        <a href="https://openrouter.ai/keys" target="_blank" class="ai-get-key-btn">Get API Key</a>
+      </div>
+    </section>
 
     <section class="topics">
       <div id="topic-chips" class="chip-container"></div>
@@ -34,10 +63,30 @@
       <div id="keyword-chips" class="keyword-chip-container"></div>
     </section>
 
-    <section class="mode-section">
-      <div class="segmented-control">
-        <button class="mode-btn active" data-mode="dim">Dim</button>
-        <button class="mode-btn" data-mode="hide">Hide</button>
+    <section id="custom-keywords-section" class="custom-keywords-section" style="display: none;">
+      <div class="keywords-header">
+        <span class="keywords-title">Custom Keywords</span>
+      </div>
+      <div id="custom-keyword-chips" class="keyword-chip-container"></div>
+      <div class="custom-keyword-add">
+        <input type="text" id="custom-keyword-input" class="text-input" placeholder="Add keyword..." />
+        <select id="custom-keyword-type" class="type-select">
+          <option value="primary">Primary</option>
+          <option value="context">Context</option>
+        </select>
+        <select id="custom-keyword-topic" class="topic-select"></select>
+        <button id="custom-keyword-add-btn" class="add-btn">+</button>
+      </div>
+    </section>
+
+    <section class="blocklist-section">
+      <div class="keywords-header">
+        <span class="keywords-title">Blocked Words</span>
+      </div>
+      <div id="blocked-chips" class="keyword-chip-container"></div>
+      <div class="blocklist-add">
+        <input type="text" id="blocked-input" class="text-input" placeholder="Add blocked word..." />
+        <button id="blocked-add-btn" class="add-btn">Add</button>
       </div>
     </section>
 

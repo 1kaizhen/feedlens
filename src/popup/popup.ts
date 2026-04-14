@@ -1,10 +1,10 @@
 import type { UserPreferences, SessionStats } from '../shared/types';
 import { TOPIC_CATEGORIES } from '../background/topic-keywords';
+import { AI_FREE_DAILY_LIMIT, AI_PAID_DAILY_LIMIT } from '../shared/constants';
 
 const chipContainer = document.getElementById('topic-chips')!;
 const powerToggle = document.getElementById('power-toggle') as HTMLInputElement;
 const onboardingMsg = document.getElementById('onboarding-message')!;
-const modeBtns = document.querySelectorAll('.mode-btn');
 const statsScanned = document.getElementById('stats-scanned')!;
 const statsRelevant = document.getElementById('stats-relevant')!;
 const statsFiltered = document.getElementById('stats-filtered')!;
@@ -12,26 +12,73 @@ const popup = document.querySelector('.popup')!;
 const keywordsSection = document.getElementById('keywords-section')!;
 const keywordChipsContainer = document.getElementById('keyword-chips')!;
 const keywordsToggleAll = document.getElementById('keywords-toggle-all')!;
+const sidebarToggle = document.getElementById('sidebar-toggle')!;
+const blockedChipsContainer = document.getElementById('blocked-chips')!;
+const blockedInput = document.getElementById('blocked-input') as HTMLInputElement;
+const blockedAddBtn = document.getElementById('blocked-add-btn')!;
+const customKeywordsSection = document.getElementById('custom-keywords-section')!;
+const customKeywordChips = document.getElementById('custom-keyword-chips')!;
+const customKeywordInput = document.getElementById('custom-keyword-input') as HTMLInputElement;
+const customKeywordType = document.getElementById('custom-keyword-type') as HTMLSelectElement;
+const customKeywordTopic = document.getElementById('custom-keyword-topic') as HTMLSelectElement;
+const customKeywordAddBtn = document.getElementById('custom-keyword-add-btn')!;
+const aiToggle = document.getElementById('ai-toggle') as HTMLInputElement;
+const aiAgenda = document.getElementById('ai-agenda') as HTMLTextAreaElement;
+const aiApiKey = document.getElementById('ai-api-key') as HTMLInputElement;
+const aiBudgetText = document.getElementById('ai-budget-text')!;
+const aiBudgetFill = document.getElementById('ai-budget-fill')!;
 
 let preferences: UserPreferences;
+let agendaDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 async function init(): Promise<void> {
   preferences = (await chrome.runtime.sendMessage({
     type: 'GET_PREFERENCES',
   })) as UserPreferences;
 
-  // Ensure selectedKeywords exists (backward compat with old stored prefs)
+  // Ensure fields exist (backward compat with old stored prefs)
   if (!preferences.selectedKeywords) {
     preferences.selectedKeywords = {};
+  }
+  if (preferences.sidebarVisible === undefined) {
+    preferences.sidebarVisible = false;
+  }
+  if (!preferences.blockedKeywords) {
+    preferences.blockedKeywords = [];
+  }
+  if (!preferences.customKeywords) {
+    preferences.customKeywords = {};
+  }
+  if (!preferences.aiConfig) {
+    preferences.aiConfig = {
+      enabled: false,
+      apiKey: '',
+      agenda: '',
+      dailyLimit: AI_FREE_DAILY_LIMIT,
+      requestsUsedToday: 0,
+      lastResetDate: new Date().toISOString().split('T')[0],
+    };
   }
 
   renderChips();
   renderKeywords();
-  renderMode();
+  renderBlockedKeywords();
+  renderCustomKeywords();
   renderPower();
+  renderSidebarToggle();
+  renderAiSection();
   await updateStatsDisplay();
+  await updateAiBudget();
 
   keywordsToggleAll.addEventListener('click', toggleAllKeywords);
+  blockedAddBtn.addEventListener('click', addBlockedKeyword);
+  blockedInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') addBlockedKeyword();
+  });
+  customKeywordAddBtn.addEventListener('click', addCustomKeyword);
+  customKeywordInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') addCustomKeyword();
+  });
 }
 
 function renderChips(): void {
@@ -80,6 +127,7 @@ function toggleTopic(topicId: string, chip: Element): void {
 
   updateOnboardingMessage();
   renderKeywords();
+  renderCustomKeywords();
   savePrefs();
 }
 
@@ -218,25 +266,6 @@ function updateOnboardingMessage(): void {
   }
 }
 
-function renderMode(): void {
-  modeBtns.forEach((btn) => {
-    btn.classList.toggle(
-      'active',
-      (btn as HTMLElement).dataset.mode === preferences.filterMode
-    );
-  });
-
-  modeBtns.forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const mode = (btn as HTMLElement).dataset.mode as 'dim' | 'hide';
-      preferences.filterMode = mode;
-      modeBtns.forEach((b) => b.classList.remove('active'));
-      btn.classList.add('active');
-      savePrefs();
-    });
-  });
-}
-
 function renderPower(): void {
   powerToggle.checked = preferences.enabled;
   popup.classList.toggle('disabled', !preferences.enabled);
@@ -256,6 +285,214 @@ async function updateStatsDisplay(): Promise<void> {
   statsScanned.textContent = `${stats.scanned} scanned`;
   statsRelevant.textContent = `${stats.relevant} relevant`;
   statsFiltered.textContent = `${stats.filtered} filtered`;
+}
+
+function renderSidebarToggle(): void {
+  sidebarToggle.classList.toggle('active', preferences.sidebarVisible);
+
+  sidebarToggle.addEventListener('click', () => {
+    preferences.sidebarVisible = !preferences.sidebarVisible;
+    sidebarToggle.classList.toggle('active', preferences.sidebarVisible);
+    savePrefs();
+  });
+}
+
+// --- Blocked keywords ---
+
+function renderBlockedKeywords(): void {
+  blockedChipsContainer.innerHTML = '';
+  for (const word of preferences.blockedKeywords) {
+    const chip = document.createElement('button');
+    chip.className = 'keyword-chip blocked';
+
+    const text = document.createTextNode(word);
+    chip.appendChild(text);
+
+    const removeBtn = document.createElement('span');
+    removeBtn.className = 'remove-btn';
+    removeBtn.textContent = '\u00D7';
+    removeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      removeBlockedKeyword(word);
+    });
+    chip.appendChild(removeBtn);
+
+    blockedChipsContainer.appendChild(chip);
+  }
+}
+
+function addBlockedKeyword(): void {
+  const word = blockedInput.value.trim();
+  if (!word) return;
+  if (preferences.blockedKeywords.includes(word)) {
+    blockedInput.value = '';
+    return;
+  }
+  preferences.blockedKeywords.push(word);
+  blockedInput.value = '';
+  renderBlockedKeywords();
+  savePrefs();
+}
+
+function removeBlockedKeyword(word: string): void {
+  const idx = preferences.blockedKeywords.indexOf(word);
+  if (idx >= 0) {
+    preferences.blockedKeywords.splice(idx, 1);
+    renderBlockedKeywords();
+    savePrefs();
+  }
+}
+
+// --- Custom keywords ---
+
+function renderCustomKeywords(): void {
+  const activeTopics = TOPIC_CATEGORIES.filter((t) =>
+    preferences.selectedTopicIds.includes(t.id)
+  );
+
+  if (activeTopics.length === 0) {
+    customKeywordsSection.style.display = 'none';
+    return;
+  }
+
+  customKeywordsSection.style.display = 'block';
+  customKeywordChips.innerHTML = '';
+
+  // Populate topic selector
+  customKeywordTopic.innerHTML = '';
+  for (const topic of activeTopics) {
+    const option = document.createElement('option');
+    option.value = topic.id;
+    option.textContent = topic.displayLabel;
+    customKeywordTopic.appendChild(option);
+  }
+
+  // Render existing custom keywords
+  for (const topic of activeTopics) {
+    const custom = preferences.customKeywords[topic.id];
+    if (!custom) continue;
+
+    const allCustom = [
+      ...custom.keywords.map((kw) => ({ text: kw, type: 'primary' as const })),
+      ...custom.contextTerms.map((ct) => ({ text: ct, type: 'context' as const })),
+    ];
+
+    if (allCustom.length === 0) continue;
+
+    const groupLabel = document.createElement('div');
+    groupLabel.className = 'keyword-group-label';
+    groupLabel.textContent = `${topic.icon} ${topic.displayLabel}`;
+    customKeywordChips.appendChild(groupLabel);
+
+    for (const item of allCustom) {
+      const chip = document.createElement('button');
+      chip.className = 'keyword-chip custom selected';
+      if (item.type === 'context') chip.classList.add('context');
+
+      const text = document.createTextNode(item.text);
+      chip.appendChild(text);
+
+      const removeBtn = document.createElement('span');
+      removeBtn.className = 'remove-btn';
+      removeBtn.textContent = '\u00D7';
+      removeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        removeCustomKeyword(topic.id, item.text, item.type);
+      });
+      chip.appendChild(removeBtn);
+
+      customKeywordChips.appendChild(chip);
+    }
+  }
+}
+
+function addCustomKeyword(): void {
+  const keyword = customKeywordInput.value.trim();
+  if (!keyword) return;
+
+  const topicId = customKeywordTopic.value;
+  const type = customKeywordType.value as 'primary' | 'context';
+
+  if (!topicId) return;
+
+  if (!preferences.customKeywords[topicId]) {
+    preferences.customKeywords[topicId] = { keywords: [], contextTerms: [] };
+  }
+
+  const custom = preferences.customKeywords[topicId];
+  const list = type === 'primary' ? custom.keywords : custom.contextTerms;
+
+  if (list.includes(keyword)) {
+    customKeywordInput.value = '';
+    return;
+  }
+
+  list.push(keyword);
+  customKeywordInput.value = '';
+  renderCustomKeywords();
+  savePrefs();
+}
+
+function removeCustomKeyword(
+  topicId: string,
+  keyword: string,
+  type: 'primary' | 'context'
+): void {
+  const custom = preferences.customKeywords[topicId];
+  if (!custom) return;
+
+  const list = type === 'primary' ? custom.keywords : custom.contextTerms;
+  const idx = list.indexOf(keyword);
+  if (idx >= 0) {
+    list.splice(idx, 1);
+    renderCustomKeywords();
+    savePrefs();
+  }
+}
+
+// --- AI section ---
+
+function renderAiSection(): void {
+  const config = preferences.aiConfig;
+  aiToggle.checked = config.enabled;
+  aiAgenda.value = config.agenda;
+  aiApiKey.value = config.apiKey;
+
+  aiToggle.addEventListener('change', () => {
+    preferences.aiConfig.enabled = aiToggle.checked;
+    savePrefs();
+  });
+
+  aiAgenda.addEventListener('input', () => {
+    if (agendaDebounceTimer) clearTimeout(agendaDebounceTimer);
+    agendaDebounceTimer = setTimeout(() => {
+      preferences.aiConfig.agenda = aiAgenda.value.trim();
+      savePrefs();
+    }, 500);
+  });
+
+  aiApiKey.addEventListener('change', () => {
+    const key = aiApiKey.value.trim();
+    preferences.aiConfig.apiKey = key;
+    preferences.aiConfig.dailyLimit = key ? AI_PAID_DAILY_LIMIT : AI_FREE_DAILY_LIMIT;
+    savePrefs();
+    updateAiBudget();
+  });
+}
+
+async function updateAiBudget(): Promise<void> {
+  try {
+    const budget = (await chrome.runtime.sendMessage({
+      type: 'GET_AI_BUDGET',
+    })) as { requestsUsedToday: number; dailyLimit: number };
+
+    const { requestsUsedToday, dailyLimit } = budget;
+    aiBudgetText.textContent = `${requestsUsedToday}/${dailyLimit} requests used today`;
+    const pct = dailyLimit > 0 ? (requestsUsedToday / dailyLimit) * 100 : 0;
+    aiBudgetFill.style.width = `${Math.min(pct, 100)}%`;
+  } catch {
+    // Service worker not ready
+  }
 }
 
 function savePrefs(): void {

@@ -141,6 +141,7 @@ export const TOPIC_CATEGORIES: TopicCategory[] = [
       'Claude API',
       'claude.ai',
       'Claude Code',
+      'Claude',
     ],
     contextTerms: [
       'LLM',

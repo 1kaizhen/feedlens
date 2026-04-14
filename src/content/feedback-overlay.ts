@@ -3,7 +3,8 @@ import type { TweetData } from '../shared/types';
 export function injectFeedbackOverlay(
   article: Element,
   tweetData: TweetData,
-  matchedTopics: string[]
+  matchedTopics: string[],
+  matchedKeywords: string[]
 ): void {
   // Skip if overlay already exists
   if (article.querySelector('.feedlens-feedback')) return;
@@ -23,7 +24,7 @@ export function injectFeedbackOverlay(
   thumbsUp.title = 'Relevant';
   thumbsUp.addEventListener('click', (e) => {
     e.stopPropagation();
-    submitFeedback(tweetData, matchedTopics, true, overlay);
+    submitFeedback(tweetData, matchedTopics, matchedKeywords, true, overlay);
   });
 
   const thumbsDown = document.createElement('button');
@@ -31,7 +32,7 @@ export function injectFeedbackOverlay(
   thumbsDown.title = 'Not relevant';
   thumbsDown.addEventListener('click', (e) => {
     e.stopPropagation();
-    submitFeedback(tweetData, matchedTopics, false, overlay);
+    submitFeedback(tweetData, matchedTopics, matchedKeywords, false, overlay);
   });
 
   overlay.appendChild(thumbsUp);
@@ -42,6 +43,7 @@ export function injectFeedbackOverlay(
 function submitFeedback(
   tweetData: TweetData,
   matchedTopics: string[],
+  matchedKeywords: string[],
   isRelevant: boolean,
   overlay: HTMLElement
 ): void {
@@ -52,6 +54,8 @@ function submitFeedback(
       tweetText: tweetData.text.slice(0, 280),
       isRelevant,
       matchedTopics,
+      matchedKeywords,
+      authorHandle: tweetData.authorHandle,
       timestamp: Date.now(),
     },
   });

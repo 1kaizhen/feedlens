@@ -10,6 +10,17 @@ export interface ScoreResponse {
   score: number;
   matchedTopics: string[];
   matchedKeywords: string[];
+  aiScore?: number;
+  aiReasoning?: string;
+}
+
+export interface AiConfig {
+  enabled: boolean;
+  apiKey: string;
+  agenda: string;
+  dailyLimit: number;
+  requestsUsedToday: number;
+  lastResetDate: string;
 }
 
 export type FilterMode = 'dim' | 'hide' | 'off';
@@ -22,6 +33,24 @@ export interface UserPreferences {
   filterMode: FilterMode;
   enabled: boolean;
   showOnboardingTooltip: boolean;
+  sidebarVisible: boolean;
+  blockedKeywords: string[];
+  customKeywords: Record<string, { keywords: string[]; contextTerms: string[] }>;
+  aiConfig: AiConfig;
+}
+
+export interface SidebarTweetEntry {
+  tweetId: string;
+  text: string;
+  authorHandle: string;
+  hasMedia: boolean;
+  isRetweet: boolean;
+  score: number;
+  matchedTopics: string[];
+  matchedKeywords: string[];
+  timestamp: number;
+  aiScore?: number;
+  aiReasoning?: string;
 }
 
 export interface SessionStats {
@@ -36,7 +65,34 @@ export interface FeedbackEntry {
   tweetText: string;
   isRelevant: boolean;
   matchedTopics: string[];
+  matchedKeywords: string[];
+  authorHandle: string;
   timestamp: number;
+}
+
+export interface KeywordWeight {
+  keyword: string;
+  topicId: string;
+  weight: number;
+  positiveCount: number;
+  negativeCount: number;
+}
+
+export type KeywordWeights = Record<string, KeywordWeight>;
+
+export interface AuthorReputation {
+  handle: string;
+  positiveCount: number;
+  negativeCount: number;
+  reputationScore: number;
+}
+
+export interface ScoringOptions {
+  selectedKeywords?: Record<string, string[]>;
+  blockedKeywords?: string[];
+  keywordWeights?: KeywordWeights;
+  customKeywords?: Record<string, { keywords: string[]; contextTerms: string[] }>;
+  authorBonus?: number;
 }
 
 export type MessageType =
@@ -46,4 +102,6 @@ export type MessageType =
   | { type: 'SUBMIT_FEEDBACK'; payload: FeedbackEntry }
   | { type: 'GET_STATS' }
   | { type: 'UPDATE_STATS'; payload: Partial<SessionStats> }
-  | { type: 'CLEAR_CACHE' };
+  | { type: 'CLEAR_CACHE' }
+  | { type: 'AI_SCORE_UPDATE'; payload: { tweetId: string; aiScore: number; aiReasoning: string } }
+  | { type: 'GET_AI_BUDGET' };
