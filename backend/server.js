@@ -1,3 +1,11 @@
+/**
+ * FeedLens backend — CANONICAL AI scoring path.
+ *
+ * The Chrome extension routes ALL AI scoring requests through this server
+ * (see src/background/ai-scoring.ts). There is no in-extension fallback to
+ * OpenRouter. Keep this server running on port 3001 whenever the extension
+ * is in use with AI mode enabled.
+ */
 import express from 'express';
 import cors from 'cors';
 
@@ -5,7 +13,18 @@ const app = express();
 const PORT = 3001;
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const ELEPHANT_MODEL_ID = 'elephantai/elephant-alpha';
+const ELEPHANT_MODEL_ID = 'openrouter/elephant-alpha';
+const ENFORCED_MODEL_ID = 'openrouter/elephant-alpha';
+const DAILY_SCORE_LIMIT = 100;
+
+let scoreLimitDate = new Date().toISOString().slice(0, 10);
+let scoreRequestsToday = 0;
+
+if (ELEPHANT_MODEL_ID !== ENFORCED_MODEL_ID) {
+  throw new Error(
+    `[FeedLens] Invalid model configuration. Only "${ENFORCED_MODEL_ID}" is allowed.`
+  );
+}
 
 app.use(cors());
 app.use(express.json());
@@ -19,6 +38,13 @@ app.use(express.json());
  */
 app.post('/score', async (req, res) => {
   const { tweets, agenda, apiKey } = req.body;
+  rotateDailyCounterIfNeeded();
+
+  if (scoreRequestsToday >= DAILY_SCORE_LIMIT) {
+    return res.status(429).json({
+      error: `Daily /score limit reached (${DAILY_SCORE_LIMIT}). Limit resets at UTC midnight.`,
+    });
+  }
 
   if (!Array.isArray(tweets) || tweets.length === 0) {
     return res.status(400).json({ error: 'tweets array is required' });
@@ -31,15 +57,36 @@ app.post('/score', async (req, res) => {
   }
 
   try {
+    scoreRequestsToday += 1;
     const results = await scoreTweets(tweets, agenda.trim(), apiKey.trim());
     res.json({ results });
   } catch (err) {
     console.error('[FeedLens] Scoring error:', err.message);
+    if (err.message.includes('not a valid model ID')) {
+      return res.status(500).json({
+        error: `OpenRouter rejected model "${ELEPHANT_MODEL_ID}". Check model availability and try again.`,
+      });
+    }
     res.status(500).json({ error: err.message });
   }
 });
 
-app.get('/health', (_req, res) => res.json({ ok: true }));
+app.get('/health', (_req, res) =>
+  res.json({
+    ok: true,
+    model: ELEPHANT_MODEL_ID,
+    scoreRequestsToday,
+    dailyScoreLimit: DAILY_SCORE_LIMIT,
+  })
+);
+
+function rotateDailyCounterIfNeeded() {
+  const today = new Date().toISOString().slice(0, 10);
+  if (today !== scoreLimitDate) {
+    scoreLimitDate = today;
+    scoreRequestsToday = 0;
+  }
+}
 
 async function scoreTweets(tweets, agenda, apiKey) {
   const tweetList = tweets
@@ -51,6 +98,14 @@ async function scoreTweets(tweets, agenda, apiKey) {
       return lines.join('\n');
     })
     .join('\n\n');
+
+  if (process.env.DEBUG_LLM) {
+    console.log('\n──────── /score → OpenRouter request ────────');
+    console.log(`agenda: "${agenda}"`);
+    console.log(`tweets (${tweets.length}):`);
+    console.log(tweetList);
+    console.log('─────────────────────────────────────────────\n');
+  }
 
   const response = await fetch(OPENROUTER_API_URL, {
     method: 'POST',
@@ -92,6 +147,15 @@ async function scoreTweets(tweets, agenda, apiKey) {
 
   const data = await response.json();
   const content = data.choices?.[0]?.message?.content ?? '';
+
+  if (process.env.DEBUG_LLM) {
+    console.log('\n──────── OpenRouter raw response ────────');
+    console.log('full envelope:', JSON.stringify(data, null, 2));
+    console.log('\nassistant content (what the model said):');
+    console.log(content);
+    console.log('─────────────────────────────────────────\n');
+  }
+
   return parseResults(content, tweets);
 }
 
@@ -127,5 +191,9 @@ function parseResults(content, tweets) {
 }
 
 app.listen(PORT, () => {
-  console.log(`FeedLens backend running on http://localhost:${PORT}`);
+  console.log(`FeedLens backend (canonical AI path) running on http://localhost:${PORT}`);
+  console.log(`[FeedLens] model: ${ELEPHANT_MODEL_ID}`);
+  console.log(
+    `[FeedLens] /score daily limit: ${DAILY_SCORE_LIMIT} requests (UTC midnight reset)`
+  );
 });

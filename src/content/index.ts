@@ -1,22 +1,23 @@
 import './content.css';
 import { extractTweetData } from './tweet-parser';
-import {
-  applyTweetStyle,
-  clearAllStyles,
-  updateHiddenBanner,
-  isTempShowAll,
-} from './dom-modifier';
+import { SIDEBAR_AI_THRESHOLD } from '../shared/constants';
 import { injectFeedbackOverlay } from './feedback-overlay';
-import { trackDimmedTweet, resetDimmedCount } from './onboarding';
 import { addEntry, clearEntries, updateEntry } from './sidebar/sidebar-store';
 import { openSidebar, closeSidebar, isSidebarOpen } from './sidebar/sidebar';
-import type { FilterMode, ScoreResponse, UserPreferences } from '../shared/types';
+import type { ScoreResponse, UserPreferences } from '../shared/types';
 
 const processedTweets = new Set<string>();
-/** Maps tweetId → { article element, keyword score } so we can update when AI results arrive */
-const tweetArticleMap = new Map<string, { article: Element; keywordScore: number }>();
-let currentFilterMode: FilterMode = 'dim';
+/** Maps tweetId → tweet context so AI results can populate the sidebar when they arrive. */
+const tweetArticleMap = new Map<
+  string,
+  {
+    tweetData: ReturnType<typeof extractTweetData>;
+    matchedTopics: string[];
+    matchedKeywords: string[];
+  }
+>();
 let isEnabled = true;
+let isAiEnabled = false;
 let processingQueue: Element[] = [];
 let isProcessing = false;
 let observer: MutationObserver | null = null;
@@ -33,8 +34,8 @@ async function init(): Promise<void> {
       return;
     }
 
-    currentFilterMode = prefs.filterMode;
     isEnabled = prefs.enabled;
+    isAiEnabled = Boolean(prefs.aiConfig?.enabled && prefs.aiConfig?.agenda?.trim() && prefs.aiConfig?.apiKey);
 
     if (prefs.sidebarVisible) {
       openSidebar();
@@ -49,8 +50,10 @@ async function init(): Promise<void> {
   chrome.storage.onChanged.addListener((changes) => {
     if (changes.preferences) {
       const newPrefs = changes.preferences.newValue as UserPreferences;
-      currentFilterMode = newPrefs.filterMode;
       isEnabled = newPrefs.enabled;
+      isAiEnabled = Boolean(
+        newPrefs.aiConfig?.enabled && newPrefs.aiConfig?.agenda?.trim() && newPrefs.aiConfig?.apiKey
+      );
 
       // Handle sidebar toggle
       if (newPrefs.sidebarVisible && !isSidebarOpen()) {
@@ -63,13 +66,14 @@ async function init(): Promise<void> {
     }
   });
 
-  // Listen for reprocess event (from "Resume filtering" button)
+  // Listen for reprocess event (e.g., after preference change)
   window.addEventListener('feedlens:reprocess', () => reprocessAll());
 
-  // Listen for AI score updates from service worker
+  // Listen for AI score updates from service worker (backend-powered)
   chrome.runtime.onMessage.addListener((message) => {
     if (message.type === 'AI_SCORE_UPDATE') {
       const { tweetId, aiScore, aiReasoning } = message.payload;
+      console.log('[FeedLens] AI_SCORE_UPDATE received', { tweetId, aiScore, aiReasoning });
       handleAiScoreUpdate(tweetId, aiScore, aiReasoning);
     }
   });
@@ -142,38 +146,16 @@ async function processTweet(article: Element): Promise<void> {
 
     if (!response) return;
 
-    // Store article reference for AI score updates later
+    // Remember tweet context so the sidebar can be populated when the AI result arrives.
     tweetArticleMap.set(tweetData.tweetId, {
-      article,
-      keywordScore: response.score,
+      tweetData,
+      matchedTopics: response.matchedTopics,
+      matchedKeywords: response.matchedKeywords,
     });
-
-    if (isTempShowAll()) return;
-
-    applyTweetStyle(article, response.score, currentFilterMode);
-
-    if (response.score < 0.3 && currentFilterMode === 'dim') {
-      trackDimmedTweet(article);
-    }
-    if (currentFilterMode === 'hide') {
-      const hiddenCount = document.querySelectorAll('.feedlens-hidden').length;
-      updateHiddenBanner(hiddenCount);
-    }
 
     injectFeedbackOverlay(article, tweetData, response.matchedTopics, response.matchedKeywords);
 
-    // Only show in sidebar if score > 5/10 (normalized: > 0.5)
-    if (response.score > 0.5) {
-      addEntry({
-        ...tweetData,
-        score: response.score,
-        matchedTopics: response.matchedTopics,
-        matchedKeywords: response.matchedKeywords,
-        timestamp: Date.now(),
-        aiScore: response.aiScore,
-        aiReasoning: response.aiReasoning,
-      });
-    }
+    // Sidebar entries are driven exclusively by AI/backend scores (see handleAiScoreUpdate).
   } catch {
     // Service worker might have restarted, skip this tweet
   }
@@ -181,26 +163,37 @@ async function processTweet(article: Element): Promise<void> {
 
 function handleAiScoreUpdate(tweetId: string, aiScore: number, aiReasoning: string): void {
   const tracked = tweetArticleMap.get(tweetId);
-  if (!tracked) return;
-
-  const { article, keywordScore } = tracked;
-  const mergedScore = Math.max(keywordScore, aiScore);
-
-  // Re-apply style if AI score promotes the tweet
-  if (aiScore > keywordScore && !isTempShowAll()) {
-    applyTweetStyle(article, mergedScore, currentFilterMode);
+  if (!tracked || !tracked.tweetData) {
+    console.log('[FeedLens] AI score arrived for untracked tweet', tweetId);
+    return;
   }
 
-  // Update sidebar entry
-  updateEntry(tweetId, { aiScore, aiReasoning, score: mergedScore });
+  const { tweetData, matchedTopics, matchedKeywords } = tracked;
+
+  // Backend returns 0-10, normalized here to 0-1. Threshold 0.5 == backend score >= 5/10.
+  if (isAiEnabled && aiScore >= SIDEBAR_AI_THRESHOLD) {
+    console.log(`[FeedLens] +sidebar card  score=${aiScore.toFixed(2)}  ${tweetId}`);
+    addEntry({
+      ...tweetData,
+      score: aiScore,
+      matchedTopics,
+      matchedKeywords,
+      timestamp: Date.now(),
+      aiScore,
+      aiReasoning,
+    });
+  } else {
+    console.log(
+      `[FeedLens] -filtered (below ${SIDEBAR_AI_THRESHOLD})  score=${aiScore.toFixed(2)}  ${tweetId}`
+    );
+  }
+
+  updateEntry(tweetId, { aiScore, aiReasoning, score: aiScore });
 }
 
 function reprocessAll(): void {
   processedTweets.clear();
   tweetArticleMap.clear();
-  clearAllStyles();
-  resetDimmedCount();
-  updateHiddenBanner(0);
   clearEntries();
 
   // Tell service worker to clear its score cache (prefs changed)

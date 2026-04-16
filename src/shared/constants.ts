@@ -15,4 +15,11 @@ export const AI_FREE_DAILY_LIMIT = 50;
 export const AI_PAID_DAILY_LIMIT = 1000;
 export const AI_RATE_LIMIT_MS = 3000;
 export const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
-export const ELEPHANT_MODEL_ID = 'elephantai/elephant-alpha';
+export const ELEPHANT_MODEL_ID = 'openrouter/elephant-alpha';
+
+// Backend (canonical AI scoring path — see backend/server.js)
+export const BACKEND_SCORE_URL = 'http://localhost:3001/score';
+
+// Sidebar threshold: only AI-scored tweets at/above this normalized score (0-1)
+// are added to the sidebar. 0.5 corresponds to backend score >= 5/10.
+export const SIDEBAR_AI_THRESHOLD = 0.5;

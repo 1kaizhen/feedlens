@@ -71,7 +71,7 @@ Final score = MAX across all selected topics.
 
 ## AI Scoring Layer
 
-`src/background/ai-scoring.ts` — `AiScoringEngine` runs alongside keyword scoring. When `UserPreferences.aiConfig.enabled` is true and an API key is set, tweets are batched (up to 10) and sent to OpenRouter (`elephantai/elephant-alpha` model) for LLM-based scoring. The AI result arrives asynchronously via `AI_SCORE_UPDATE` message back to the content script's tab. Rate limited to 1 request per 3 seconds; daily budget capped at 50 (free) or 1000 (paid) requests, reset via a `chrome.alarms` hourly wakeup.
+`src/background/ai-scoring.ts` — `AiScoringEngine` runs alongside keyword scoring. When `UserPreferences.aiConfig.enabled` is true and an API key is set, tweets are batched (up to 10) and sent to OpenRouter (`openrouter/elephant-alpha` model) for LLM-based scoring. The AI result arrives asynchronously via `AI_SCORE_UPDATE` message back to the content script's tab. Rate limited to 1 request per 3 seconds; daily budget capped at 50 (free) or 1000 (paid) requests, reset via a `chrome.alarms` hourly wakeup.
 
 ## Feedback-Driven Learning
 
@@ -82,6 +82,15 @@ When users submit feedback (`SUBMIT_FEEDBACK`), the service worker:
 4. Invalidates the LRU score cache so re-scoring picks up new weights
 
 Weights are keyed as `"topicId::keyword"` in `KeywordWeights` (a `Record<string, KeywordWeight>`).
+
+## Backend (optional AI proxy)
+
+`backend/` is a standalone Express server (port 3001, separate `package.json`). It proxies AI scoring requests to OpenRouter, pinned to `openrouter/elephant-alpha`. Start with `cd backend && npm install && npm start`. Has its own daily request limit (100, UTC reset). The extension can also call OpenRouter directly via `ai-scoring.ts` — the backend is an alternative path, not required for basic operation.
+
+## Manifest & Build
+
+`manifest.json` is processed by `@crxjs/vite-plugin` — it references `.ts` source files directly (the plugin handles compilation). Permissions: `activeTab`, `storage`, `alarms`. Host permissions: `twitter.com`, `x.com`, `openrouter.ai`.
+
 ## Key Implementation Details
 
 - All content CSS uses `!important` to override Twitter's styles

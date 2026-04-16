@@ -90,14 +90,6 @@ export interface AuthorReputation {
   reputationScore: number;
 }
 
-export interface ScoringOptions {
-  selectedKeywords?: Record<string, string[]>;
-  blockedKeywords?: string[];
-  keywordWeights?: KeywordWeights;
-  customKeywords?: Record<string, { keywords: string[]; contextTerms: string[] }>;
-  authorBonus?: number;
-}
-
 export type MessageType =
   | { type: 'SCORE_TWEET'; payload: TweetData }
   | { type: 'GET_PREFERENCES' }

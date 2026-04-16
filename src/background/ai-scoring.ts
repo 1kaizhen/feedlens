@@ -3,8 +3,7 @@ import {
   AI_BATCH_SIZE,
   AI_BATCH_FLUSH_MS,
   AI_RATE_LIMIT_MS,
-  OPENROUTER_API_URL,
-  ELEPHANT_MODEL_ID,
+  BACKEND_SCORE_URL,
 } from '../shared/constants';
 
 export interface AiQueueItem {
@@ -87,7 +86,9 @@ export class AiScoringEngine {
     }
 
     try {
-      const results = await this.callOpenRouter(batch, config.agenda, config.apiKey);
+      console.log(`[FeedLens AI] flushing batch of ${batch.length} to backend`);
+      const results = await this.callBackend(batch, config.agenda, config.apiKey);
+      console.log(`[FeedLens AI] backend returned ${results.length} scored tweets`, results);
       this.lastRequestTime = Date.now();
       await this.updateBudget(config.requestsUsedToday + 1);
 
@@ -103,8 +104,8 @@ export class AiScoringEngine {
             aiScore: result.score,
             aiReasoning: result.reason,
           },
-        }).catch(() => {
-          // Tab may have closed
+        }).catch((err) => {
+          console.warn(`[FeedLens AI] failed to deliver score to tab ${item.tabId}:`, err);
         });
       }
     } catch (err) {
@@ -121,87 +122,56 @@ export class AiScoringEngine {
     }
   }
 
-  private async callOpenRouter(
+  /**
+   * Canonical AI scoring path: POST to FeedLens backend (see backend/server.js).
+   * Backend returns scores on a 0-10 scale; we normalize to 0-1 for extension internals.
+   */
+  private async callBackend(
     batch: AiQueueItem[],
     agenda: string,
     apiKey: string
   ): Promise<AiResult[]> {
-    const tweetList = batch
-      .map((item, i) => `${i + 1}. [id: ${item.tweetId}] "${item.text}"`)
-      .join('\n');
+    const tweets = batch.map((item) => ({
+      tweetId: item.tweetId,
+      text: item.text,
+    }));
 
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-      'HTTP-Referer': 'https://feedlens.extension',
-      'X-OpenRouter-Title': 'FeedLens',
-    };
-
-    const response = await fetch(OPENROUTER_API_URL, {
+    const response = await fetch(BACKEND_SCORE_URL, {
       method: 'POST',
-      headers,
-      body: JSON.stringify({
-        model: ELEPHANT_MODEL_ID,
-        messages: [
-          {
-            role: 'system',
-            content:
-              'You evaluate tweets for relevance to a user\'s interests. ' +
-              'Return a JSON array with one object per tweet: {"id": "...", "score": 0.0-1.0, "reason": "..."}. ' +
-              'Score meaning: 1.0 = highly relevant, 0.7+ = relevant, 0.3-0.7 = maybe relevant, <0.3 = not relevant. ' +
-              'Return ONLY the JSON array, no other text.',
-          },
-          {
-            role: 'user',
-            content: `My agenda: "${agenda}"\n\nEvaluate these tweets:\n${tweetList}`,
-          },
-        ],
-        temperature: 0.1,
-        max_tokens: 2048,
-      }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tweets, agenda, apiKey }),
     });
 
     if (!response.ok) {
-      throw new Error(`OpenRouter API error: ${response.status} ${response.statusText}`);
+      const body = await response.text().catch(() => '');
+      throw new Error(
+        `FeedLens backend error: ${response.status} ${response.statusText} ${body}`
+      );
     }
 
-    const data = await response.json();
-    const content: string = data.choices?.[0]?.message?.content ?? '';
+    const data = (await response.json()) as {
+      results?: Array<{ id?: string; score?: number; reason?: string }>;
+    };
+    const validIds = new Set(batch.map((b) => b.tweetId));
 
-    return this.parseResults(content, batch);
-  }
+    const normalized = (data.results ?? [])
+      .map((r) => {
+        const rawScore = typeof r.score === 'number' ? r.score : NaN;
+        if (!Number.isFinite(rawScore) || rawScore < 0 || rawScore > 10) return null;
+        if (!r.id || !validIds.has(r.id)) return null;
 
-  private parseResults(content: string, batch: AiQueueItem[]): AiResult[] {
-    // Extract JSON array from response (handle markdown code blocks)
-    const jsonMatch = content.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) return [];
-
-    try {
-      const parsed = JSON.parse(jsonMatch[0]) as Array<{
-        id?: string;
-        score?: number;
-        reason?: string;
-      }>;
-
-      const validIds = new Set(batch.map((b) => b.tweetId));
-
-      return parsed
-        .filter(
-          (r) =>
-            r.id &&
-            validIds.has(r.id) &&
-            typeof r.score === 'number' &&
-            r.score >= 0 &&
-            r.score <= 1
-        )
-        .map((r) => ({
-          id: r.id!,
-          score: Math.round(r.score! * 100) / 100,
+        return {
+          id: r.id,
+          score: Math.round((rawScore / 10) * 100) / 100,
           reason: r.reason ?? '',
-        }));
-    } catch {
-      console.warn('[FeedLens AI] Failed to parse LLM response:', content);
-      return [];
+        };
+      })
+      .filter((r): r is AiResult => r !== null);
+
+    const deduped = new Map<string, AiResult>();
+    for (const item of normalized) {
+      deduped.set(item.id, item);
     }
+    return Array.from(deduped.values());
   }
 }

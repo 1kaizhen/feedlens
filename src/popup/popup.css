@@ -494,3 +494,39 @@ body {
   opacity: 0.4;
   pointer-events: none;
 }
+
+/* Minimal popup layout */
+.minimal-ai {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.minimal-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #5f6368;
+}
+
+.run-plugin-btn {
+  margin-top: 8px;
+  width: 100%;
+  padding: 9px 12px;
+  border: none;
+  border-radius: 8px;
+  background: #1a73e8;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.run-plugin-btn:hover {
+  background: #1765cc;
+}
+
+.run-plugin-status {
+  min-height: 16px;
+  font-size: 12px;
+  color: #5f6368;
+}

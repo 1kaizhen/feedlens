@@ -119,6 +119,13 @@ function renderIncremental(): void {
   if (!listEl || !countEl) return;
   const entries = getEntries();
 
+  // Existing entries may have changed (e.g., AI score update).
+  // Do a full render when count is unchanged so card content refreshes.
+  if (entries.length === renderedCount) {
+    renderFull();
+    return;
+  }
+
   // If entries were cleared, do a full render
   if (entries.length < renderedCount) {
     renderFull();

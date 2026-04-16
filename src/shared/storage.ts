@@ -22,6 +22,21 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   aiConfig: { ...DEFAULT_AI_CONFIG },
 };
 
+function normalizePreferences(raw?: Partial<UserPreferences>): UserPreferences {
+  return {
+    ...DEFAULT_PREFERENCES,
+    ...(raw ?? {}),
+    selectedTopicIds: raw?.selectedTopicIds ?? DEFAULT_PREFERENCES.selectedTopicIds,
+    selectedKeywords: raw?.selectedKeywords ?? DEFAULT_PREFERENCES.selectedKeywords,
+    blockedKeywords: raw?.blockedKeywords ?? DEFAULT_PREFERENCES.blockedKeywords,
+    customKeywords: raw?.customKeywords ?? DEFAULT_PREFERENCES.customKeywords,
+    aiConfig: {
+      ...DEFAULT_AI_CONFIG,
+      ...(raw?.aiConfig ?? {}),
+    },
+  };
+}
+
 function todayString(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -35,7 +50,10 @@ const DEFAULT_STATS: SessionStats = {
 
 export async function getPreferences(): Promise<UserPreferences> {
   const result = await chrome.storage.local.get('preferences');
-  return (result.preferences as UserPreferences | undefined) ?? { ...DEFAULT_PREFERENCES };
+  const prefs = normalizePreferences(result.preferences as Partial<UserPreferences> | undefined);
+  // Persist normalized shape so future reads are stable.
+  await chrome.storage.local.set({ preferences: prefs });
+  return prefs;
 }
 
 export async function savePreferences(prefs: UserPreferences): Promise<void> {
