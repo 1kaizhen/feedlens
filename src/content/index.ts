@@ -1,6 +1,5 @@
 import './content.css';
 import { extractTweetData } from './tweet-parser';
-import { SIDEBAR_AI_THRESHOLD } from '../shared/constants';
 import { injectFeedbackOverlay } from './feedback-overlay';
 import { addEntry, clearEntries, updateEntry } from './sidebar/sidebar-store';
 import { openSidebar, closeSidebar, isSidebarOpen } from './sidebar/sidebar';
@@ -50,6 +49,9 @@ async function init(): Promise<void> {
   chrome.storage.onChanged.addListener((changes) => {
     if (changes.preferences) {
       const newPrefs = changes.preferences.newValue as UserPreferences;
+      const wasEnabled = isEnabled;
+      const wasAiEnabled = isAiEnabled;
+
       isEnabled = newPrefs.enabled;
       isAiEnabled = Boolean(
         newPrefs.aiConfig?.enabled && newPrefs.aiConfig?.agenda?.trim() && newPrefs.aiConfig?.apiKey
@@ -62,7 +64,10 @@ async function init(): Promise<void> {
         closeSidebar();
       }
 
-      reprocessAll();
+      // Only reprocess if scoring-relevant prefs changed (not just sidebar visibility).
+      if (wasEnabled !== isEnabled || wasAiEnabled !== isAiEnabled) {
+        reprocessAll();
+      }
     }
   });
 
@@ -136,6 +141,14 @@ async function processTweet(article: Element): Promise<void> {
   if (processedTweets.has(tweetData.tweetId)) {
     return;
   }
+
+  // Record the tweet BEFORE calling SCORE_TWEET so that even if the SW is asleep
+  // and the message fails, a late AI_SCORE_UPDATE can still find the tweet data.
+  tweetArticleMap.set(tweetData.tweetId, {
+    tweetData,
+    matchedTopics: [],
+    matchedKeywords: [],
+  });
   processedTweets.add(tweetData.tweetId);
 
   try {
@@ -146,7 +159,7 @@ async function processTweet(article: Element): Promise<void> {
 
     if (!response) return;
 
-    // Remember tweet context so the sidebar can be populated when the AI result arrives.
+    // Update with matched topics/keywords (still empty in AI-only mode, but future-proof).
     tweetArticleMap.set(tweetData.tweetId, {
       tweetData,
       matchedTopics: response.matchedTopics,
@@ -156,38 +169,46 @@ async function processTweet(article: Element): Promise<void> {
     injectFeedbackOverlay(article, tweetData, response.matchedTopics, response.matchedKeywords);
 
     // Sidebar entries are driven exclusively by AI/backend scores (see handleAiScoreUpdate).
-  } catch {
-    // Service worker might have restarted, skip this tweet
+  } catch (err) {
+    // SW might have briefly slept — the tweet is already in tweetArticleMap,
+    // so a late AI update will still populate the sidebar.
+    console.warn('[FeedLens] SCORE_TWEET failed (will rely on AI update if it arrives):', err);
   }
 }
 
 function handleAiScoreUpdate(tweetId: string, aiScore: number, aiReasoning: string): void {
   const tracked = tweetArticleMap.get(tweetId);
-  if (!tracked || !tracked.tweetData) {
-    console.log('[FeedLens] AI score arrived for untracked tweet', tweetId);
-    return;
-  }
 
-  const { tweetData, matchedTopics, matchedKeywords } = tracked;
+  // If we have tracked context, use it. Otherwise fall back to a minimal entry
+  // so data is never dropped (e.g. when reprocessAll cleared the map mid-flight).
+  const baseEntry = tracked?.tweetData
+    ? {
+        ...tracked.tweetData,
+        matchedTopics: tracked.matchedTopics,
+        matchedKeywords: tracked.matchedKeywords,
+      }
+    : {
+        tweetId,
+        text: '',
+        authorHandle: 'unknown',
+        hasMedia: false,
+        isRetweet: false,
+        matchedTopics: [] as string[],
+        matchedKeywords: [] as string[],
+      };
 
-  // Backend returns 0-10, normalized here to 0-1. Threshold 0.5 == backend score >= 5/10.
-  if (isAiEnabled && aiScore >= SIDEBAR_AI_THRESHOLD) {
-    console.log(`[FeedLens] +sidebar card  score=${aiScore.toFixed(2)}  ${tweetId}`);
-    addEntry({
-      ...tweetData,
-      score: aiScore,
-      matchedTopics,
-      matchedKeywords,
-      timestamp: Date.now(),
-      aiScore,
-      aiReasoning,
-    });
-  } else {
-    console.log(
-      `[FeedLens] -filtered (below ${SIDEBAR_AI_THRESHOLD})  score=${aiScore.toFixed(2)}  ${tweetId}`
-    );
-  }
+  console.log(`[FeedLens] +sidebar card  score=${aiScore.toFixed(1)}/10  ${tweetId}`);
 
+  // Always add — sidebar shows all AI-scored tweets; user sorts/filters via UI.
+  addEntry({
+    ...baseEntry,
+    score: aiScore,
+    timestamp: Date.now(),
+    aiScore,
+    aiReasoning,
+  });
+
+  // If the entry already existed (duplicate delivery), refresh its score fields.
   updateEntry(tweetId, { aiScore, aiReasoning, score: aiScore });
 }
 

@@ -54,9 +54,9 @@ chrome.runtime.onMessage.addListener(
 );
 
 /** Stub response returned for SCORE_TWEET. Real scoring happens via the backend AI path
- *  and arrives asynchronously through AI_SCORE_UPDATE. */
+ *  and arrives asynchronously through AI_SCORE_UPDATE. Score is on the universal 1-10 scale. */
 const STUB_SCORE: ScoreResponse = {
-  score: 0.5,
+  score: 5,
   matchedTopics: [],
   matchedKeywords: [],
 };

@@ -1,5 +1,9 @@
-export const RELEVANT_THRESHOLD = 0.7;
-export const UNCERTAIN_THRESHOLD = 0.3;
+// All relevance scores in FeedLens are on a UNIVERSAL 1-10 scale.
+// Backend returns 0-10 from the LLM, and that value flows through the
+// extension unmodified. 0 is reserved for "no score yet / error".
+export const RELEVANT_THRESHOLD = 7;
+export const UNCERTAIN_THRESHOLD = 3;
+
 export const MAX_CACHE_SIZE = 2000;
 export const MAX_FEEDBACK_ENTRIES = 500;
 export const MIN_FEEDBACK_FOR_WEIGHT = 3;
@@ -19,7 +23,3 @@ export const ELEPHANT_MODEL_ID = 'openrouter/elephant-alpha';
 
 // Backend (canonical AI scoring path — see backend/server.js)
 export const BACKEND_SCORE_URL = 'http://localhost:3001/score';
-
-// Sidebar threshold: only AI-scored tweets at/above this normalized score (0-1)
-// are added to the sidebar. 0.5 corresponds to backend score >= 5/10.
-export const SIDEBAR_AI_THRESHOLD = 0.5;

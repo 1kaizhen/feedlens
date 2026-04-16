@@ -10,9 +10,11 @@ export interface TweetData {
 }
 
 export interface ScoreResponse {
+  /** Relevance on the universal 0-10 scale (1 decimal place). */
   score: number;
   matchedTopics: string[];
   matchedKeywords: string[];
+  /** AI relevance on the universal 0-10 scale (1 decimal place). */
   aiScore?: number;
   aiReasoning?: string;
 }
@@ -48,10 +50,12 @@ export interface SidebarTweetEntry {
   authorHandle: string;
   hasMedia: boolean;
   isRetweet: boolean;
+  /** Relevance on the universal 0-10 scale (1 decimal place). */
   score: number;
   matchedTopics: string[];
   matchedKeywords: string[];
   timestamp: number;
+  /** AI relevance on the universal 0-10 scale (1 decimal place). */
   aiScore?: number;
   aiReasoning?: string;
 }

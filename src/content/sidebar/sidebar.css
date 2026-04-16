@@ -1,4 +1,4 @@
-/* FeedLens Sidebar */
+/* FeedLens Sidebar — v2 (1-10 universal scale, show-all) */
 
 body.feedlens-sidebar-active {
   margin-right: 380px !important;
@@ -12,13 +12,15 @@ body.feedlens-sidebar-active {
   width: 380px !important;
   height: 100vh !important;
   background: #ffffff !important;
-  border-left: 1px solid #dadce0 !important;
+  border-left: 1px solid #e1e5ea !important;
+  box-shadow: -4px 0 16px rgba(15, 20, 25, 0.04) !important;
   z-index: 99999 !important;
   display: flex !important;
   flex-direction: column !important;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
   transform: translateX(100%) !important;
   transition: transform 0.3s ease !important;
+  color: #0f1419 !important;
 }
 
 .feedlens-sidebar.feedlens-sidebar-open {
@@ -28,139 +30,335 @@ body.feedlens-sidebar-active {
 /* Header */
 .feedlens-sidebar-header {
   display: flex !important;
-  align-items: center !important;
-  justify-content: space-between !important;
-  padding: 12px 16px !important;
-  border-bottom: 1px solid #dadce0 !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+  padding: 14px 16px 12px !important;
+  border-bottom: 1px solid #eff3f4 !important;
   flex-shrink: 0 !important;
+  background: linear-gradient(180deg, #ffffff 0%, #fafbfc 100%) !important;
 }
 
-.feedlens-sidebar-header-left {
+.feedlens-sidebar-header-top {
   display: flex !important;
   align-items: center !important;
+  justify-content: space-between !important;
+}
+
+.feedlens-sidebar-title-row {
+  display: flex !important;
+  align-items: baseline !important;
   gap: 8px !important;
 }
 
 .feedlens-sidebar-title {
-  font-size: 15px !important;
-  font-weight: 700 !important;
-  color: #202124 !important;
+  font-size: 16px !important;
+  font-weight: 800 !important;
+  color: #0f1419 !important;
+  letter-spacing: -0.01em !important;
 }
 
 .feedlens-sidebar-count {
   font-size: 12px !important;
-  color: #80868b !important;
-  font-weight: 400 !important;
+  font-weight: 600 !important;
+  color: #536471 !important;
+  background: #eff3f4 !important;
+  padding: 2px 8px !important;
+  border-radius: 10px !important;
+  min-width: 20px !important;
+  text-align: center !important;
 }
 
-.feedlens-sidebar-header-actions {
-  display: flex !important;
-  align-items: center !important;
-  gap: 4px !important;
-}
-
-.feedlens-sidebar-btn {
+.feedlens-sidebar-icon-btn {
   background: none !important;
   border: none !important;
   cursor: pointer !important;
-  padding: 4px 8px !important;
-  border-radius: 4px !important;
-  font-size: 13px !important;
-  color: #5f6368 !important;
+  padding: 0 !important;
+  width: 28px !important;
+  height: 28px !important;
+  border-radius: 50% !important;
+  color: #536471 !important;
+  font-size: 20px !important;
+  line-height: 1 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
   transition: background 0.15s !important;
 }
 
-.feedlens-sidebar-btn:hover {
-  background: #f1f3f4 !important;
+.feedlens-sidebar-icon-btn:hover {
+  background: #eff3f4 !important;
+  color: #0f1419 !important;
 }
 
-.feedlens-sidebar-close {
-  font-size: 18px !important;
-  line-height: 1 !important;
+.feedlens-sidebar-controls {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
 }
 
-/* Card list */
+.feedlens-sidebar-sort {
+  display: inline-flex !important;
+  background: #eff3f4 !important;
+  border-radius: 8px !important;
+  padding: 2px !important;
+}
+
+.feedlens-sidebar-sort-btn {
+  background: transparent !important;
+  border: none !important;
+  cursor: pointer !important;
+  padding: 4px 10px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: #536471 !important;
+  border-radius: 6px !important;
+  transition: all 0.15s !important;
+}
+
+.feedlens-sidebar-sort-btn:hover {
+  color: #0f1419 !important;
+}
+
+.feedlens-sidebar-sort-btn.active {
+  background: #ffffff !important;
+  color: #0f1419 !important;
+  box-shadow: 0 1px 2px rgba(15, 20, 25, 0.08) !important;
+}
+
+.feedlens-sidebar-text-btn {
+  background: transparent !important;
+  border: 1px solid #cfd9de !important;
+  cursor: pointer !important;
+  padding: 4px 10px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: #536471 !important;
+  border-radius: 8px !important;
+  transition: all 0.15s !important;
+}
+
+.feedlens-sidebar-text-btn:hover {
+  background: #eff3f4 !important;
+  color: #0f1419 !important;
+}
+
+/* List */
 .feedlens-sidebar-list {
   flex: 1 !important;
   overflow-y: auto !important;
-  padding: 8px !important;
+  padding: 10px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
 }
 
 .feedlens-sidebar-empty {
   text-align: center !important;
-  color: #80868b !important;
+  color: #536471 !important;
   font-size: 13px !important;
-  padding: 32px 16px !important;
+  padding: 48px 24px !important;
+  line-height: 1.5 !important;
 }
 
-/* Tweet card */
+/* Card */
 .feedlens-sidebar-card {
-  padding: 10px 12px !important;
-  border: 1px solid #e8eaed !important;
-  border-radius: 8px !important;
-  margin-bottom: 6px !important;
+  padding: 12px !important;
+  border: 1px solid #eff3f4 !important;
+  border-radius: 12px !important;
+  background: #ffffff !important;
   cursor: pointer !important;
-  transition: background 0.15s !important;
+  transition: all 0.15s !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
 }
 
 .feedlens-sidebar-card:hover {
-  background: #f8f9fa !important;
+  border-color: #cfd9de !important;
+  background: #fafbfc !important;
+  transform: translateY(-1px) !important;
+}
+
+.feedlens-sidebar-card-top {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
 }
 
 .feedlens-sidebar-card-author {
-  font-size: 12px !important;
-  font-weight: 600 !important;
-  color: #1a73e8 !important;
-  margin-bottom: 4px !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: #0f1419 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
 }
 
+/* Score chip (1-10 universal scale) */
+.feedlens-sidebar-chip {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  padding: 3px 8px !important;
+  border-radius: 10px !important;
+  white-space: nowrap !important;
+  letter-spacing: 0.01em !important;
+  flex-shrink: 0 !important;
+}
+
+.feedlens-sidebar-chip-high {
+  background: #dcfce7 !important;
+  color: #15803d !important;
+  border: 1px solid #bbf7d0 !important;
+}
+
+.feedlens-sidebar-chip-mid {
+  background: #fef3c7 !important;
+  color: #a16207 !important;
+  border: 1px solid #fde68a !important;
+}
+
+.feedlens-sidebar-chip-low {
+  background: #fee2e2 !important;
+  color: #b91c1c !important;
+  border: 1px solid #fecaca !important;
+}
+
+/* Text */
 .feedlens-sidebar-card-text {
   font-size: 13px !important;
-  color: #202124 !important;
-  line-height: 1.4 !important;
-  margin-bottom: 6px !important;
+  color: #0f1419 !important;
+  line-height: 1.45 !important;
   word-break: break-word !important;
+  white-space: pre-wrap !important;
 }
 
+.feedlens-sidebar-card-reason {
+  font-size: 11px !important;
+  color: #536471 !important;
+  line-height: 1.4 !important;
+  padding: 8px 10px !important;
+  background: #f7f9fa !important;
+  border-left: 3px solid #8b5cf6 !important;
+  border-radius: 4px !important;
+  font-style: italic !important;
+}
+
+/* Footer */
 .feedlens-sidebar-card-footer {
   display: flex !important;
   align-items: center !important;
+  justify-content: space-between !important;
   gap: 6px !important;
+  margin-top: 2px !important;
 }
 
-/* Score badges */
-.feedlens-sidebar-badge {
-  font-size: 11px !important;
+.feedlens-sidebar-card-tags {
+  display: flex !important;
+  gap: 4px !important;
+  flex-wrap: wrap !important;
+}
+
+.feedlens-sidebar-tag {
+  font-size: 10px !important;
   font-weight: 600 !important;
   padding: 2px 6px !important;
   border-radius: 4px !important;
+  background: #eff3f4 !important;
+  color: #536471 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.03em !important;
 }
 
-.feedlens-sidebar-badge-relevant {
-  background: #e6f4ea !important;
-  color: #137333 !important;
+.feedlens-sidebar-card-link {
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  color: #1d9bf0 !important;
+  text-decoration: none !important;
+  padding: 2px 6px !important;
+  border-radius: 4px !important;
+  transition: background 0.15s !important;
 }
 
-.feedlens-sidebar-badge-uncertain {
-  background: #fef7e0 !important;
-  color: #b05a00 !important;
+.feedlens-sidebar-card-link:hover {
+  background: #e8f5fd !important;
+  text-decoration: underline !important;
 }
 
-.feedlens-sidebar-badge-low {
-  background: #fce8e6 !important;
-  color: #c5221f !important;
-}
-
-.feedlens-sidebar-badge-ai {
-  background: #f3e8fd !important;
-  color: #7b1fa2 !important;
-}
-
-/* Media/RT tags */
-.feedlens-sidebar-tag {
-  font-size: 10px !important;
-  padding: 1px 5px !important;
-  border-radius: 3px !important;
-  background: #f1f3f4 !important;
-  color: #5f6368 !important;
+/* Dark theme support — matches X's dark/dim modes. */
+@media (prefers-color-scheme: dark) {
+  .feedlens-sidebar {
+    background: #000000 !important;
+    color: #e7e9ea !important;
+    border-left-color: #2f3336 !important;
+  }
+  .feedlens-sidebar-header {
+    background: linear-gradient(180deg, #000000 0%, #0a0a0a 100%) !important;
+    border-bottom-color: #2f3336 !important;
+  }
+  .feedlens-sidebar-title {
+    color: #e7e9ea !important;
+  }
+  .feedlens-sidebar-count,
+  .feedlens-sidebar-sort-btn,
+  .feedlens-sidebar-text-btn,
+  .feedlens-sidebar-icon-btn {
+    color: #8b98a5 !important;
+  }
+  .feedlens-sidebar-count,
+  .feedlens-sidebar-sort {
+    background: #16181c !important;
+  }
+  .feedlens-sidebar-text-btn {
+    border-color: #2f3336 !important;
+    background: transparent !important;
+  }
+  .feedlens-sidebar-text-btn:hover,
+  .feedlens-sidebar-icon-btn:hover {
+    background: #16181c !important;
+    color: #e7e9ea !important;
+  }
+  .feedlens-sidebar-sort-btn.active {
+    background: #0f1419 !important;
+    color: #e7e9ea !important;
+  }
+  .feedlens-sidebar-empty {
+    color: #8b98a5 !important;
+  }
+  .feedlens-sidebar-card {
+    background: #16181c !important;
+    border-color: #2f3336 !important;
+  }
+  .feedlens-sidebar-card:hover {
+    background: #1c1f23 !important;
+    border-color: #3e4144 !important;
+  }
+  .feedlens-sidebar-card-author,
+  .feedlens-sidebar-card-text {
+    color: #e7e9ea !important;
+  }
+  .feedlens-sidebar-card-reason {
+    background: #0f1419 !important;
+    color: #8b98a5 !important;
+  }
+  .feedlens-sidebar-tag {
+    background: #2f3336 !important;
+    color: #8b98a5 !important;
+  }
+  .feedlens-sidebar-chip-high {
+    background: rgba(34, 197, 94, 0.15) !important;
+    color: #4ade80 !important;
+    border-color: rgba(34, 197, 94, 0.3) !important;
+  }
+  .feedlens-sidebar-chip-mid {
+    background: rgba(234, 179, 8, 0.15) !important;
+    color: #facc15 !important;
+    border-color: rgba(234, 179, 8, 0.3) !important;
+  }
+  .feedlens-sidebar-chip-low {
+    background: rgba(239, 68, 68, 0.15) !important;
+    color: #f87171 !important;
+    border-color: rgba(239, 68, 68, 0.3) !important;
+  }
 }

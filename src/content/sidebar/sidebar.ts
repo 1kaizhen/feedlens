@@ -2,25 +2,27 @@ import './sidebar.css';
 import { getEntries, subscribe, clearEntries } from './sidebar-store';
 import { createTweetCard } from './sidebar-tweet-card';
 import { savePreferences, getPreferences } from '../../shared/storage';
+import type { SidebarTweetEntry } from '../../shared/types';
+
+type SortMode = 'score' | 'time';
 
 let container: HTMLElement | null = null;
 let listEl: HTMLElement | null = null;
 let countEl: HTMLElement | null = null;
-let renderedCount = 0;
 let unsubscribe: (() => void) | null = null;
+let sortMode: SortMode = 'score';
 
 export function openSidebar(): void {
   if (!container) {
     createSidebarDOM();
   }
-  // Small delay to allow the browser to paint the initial position
   requestAnimationFrame(() => {
     container!.classList.add('feedlens-sidebar-open');
     document.body.classList.add('feedlens-sidebar-active');
   });
-  renderFull();
+  render();
   if (!unsubscribe) {
-    unsubscribe = subscribe(renderIncremental);
+    unsubscribe = subscribe(render);
   }
 }
 
@@ -51,8 +53,8 @@ function createSidebarDOM(): void {
   const header = document.createElement('div');
   header.className = 'feedlens-sidebar-header';
 
-  const headerLeft = document.createElement('div');
-  headerLeft.className = 'feedlens-sidebar-header-left';
+  const titleRow = document.createElement('div');
+  titleRow.className = 'feedlens-sidebar-title-row';
 
   const title = document.createElement('span');
   title.className = 'feedlens-sidebar-title';
@@ -60,32 +62,46 @@ function createSidebarDOM(): void {
 
   countEl = document.createElement('span');
   countEl.className = 'feedlens-sidebar-count';
-  countEl.textContent = '0 tweets';
+  countEl.textContent = '0';
 
-  headerLeft.appendChild(title);
-  headerLeft.appendChild(countEl);
-
-  const actions = document.createElement('div');
-  actions.className = 'feedlens-sidebar-header-actions';
-
-  const clearBtn = document.createElement('button');
-  clearBtn.className = 'feedlens-sidebar-btn';
-  clearBtn.textContent = 'Clear';
-  clearBtn.addEventListener('click', () => {
-    clearEntries();
-    renderFull();
-  });
+  titleRow.appendChild(title);
+  titleRow.appendChild(countEl);
 
   const closeBtn = document.createElement('button');
-  closeBtn.className = 'feedlens-sidebar-btn feedlens-sidebar-close';
+  closeBtn.className = 'feedlens-sidebar-icon-btn';
+  closeBtn.setAttribute('aria-label', 'Close sidebar');
   closeBtn.textContent = '\u00d7';
   closeBtn.addEventListener('click', closeSidebar);
 
-  actions.appendChild(clearBtn);
-  actions.appendChild(closeBtn);
+  const headerTop = document.createElement('div');
+  headerTop.className = 'feedlens-sidebar-header-top';
+  headerTop.appendChild(titleRow);
+  headerTop.appendChild(closeBtn);
 
-  header.appendChild(headerLeft);
-  header.appendChild(actions);
+  // Controls row: sort + clear
+  const controls = document.createElement('div');
+  controls.className = 'feedlens-sidebar-controls';
+
+  const sortGroup = document.createElement('div');
+  sortGroup.className = 'feedlens-sidebar-sort';
+
+  const sortScore = makeSortBtn('Score', 'score');
+  const sortTime = makeSortBtn('Newest', 'time');
+  sortGroup.appendChild(sortScore);
+  sortGroup.appendChild(sortTime);
+
+  const clearBtn = document.createElement('button');
+  clearBtn.className = 'feedlens-sidebar-text-btn';
+  clearBtn.textContent = 'Clear';
+  clearBtn.addEventListener('click', () => {
+    clearEntries();
+  });
+
+  controls.appendChild(sortGroup);
+  controls.appendChild(clearBtn);
+
+  header.appendChild(headerTop);
+  header.appendChild(controls);
 
   // List
   listEl = document.createElement('div');
@@ -96,51 +112,51 @@ function createSidebarDOM(): void {
   document.body.appendChild(container);
 }
 
-function renderFull(): void {
+function makeSortBtn(label: string, mode: SortMode): HTMLButtonElement {
+  const btn = document.createElement('button');
+  btn.className = 'feedlens-sidebar-sort-btn';
+  btn.textContent = label;
+  btn.dataset.sortMode = mode;
+  if (sortMode === mode) btn.classList.add('active');
+  btn.addEventListener('click', () => {
+    sortMode = mode;
+    // Update active state on all sort buttons
+    container
+      ?.querySelectorAll('.feedlens-sidebar-sort-btn')
+      .forEach((b) => b.classList.toggle('active', (b as HTMLElement).dataset.sortMode === mode));
+    render();
+  });
+  return btn;
+}
+
+function sortEntries(entries: readonly SidebarTweetEntry[]): SidebarTweetEntry[] {
+  const copy = [...entries];
+  if (sortMode === 'score') {
+    copy.sort((a, b) => b.score - a.score || b.timestamp - a.timestamp);
+  } else {
+    copy.sort((a, b) => b.timestamp - a.timestamp);
+  }
+  return copy;
+}
+
+function render(): void {
   if (!listEl || !countEl) return;
+  const entries = sortEntries(getEntries());
+
+  // Rebuild the list — with sorting + dedup, incremental rendering gets
+  // tangled. List is capped at 500 so full render is still cheap.
   listEl.innerHTML = '';
-  renderedCount = 0;
-  const entries = getEntries();
+
   if (entries.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'feedlens-sidebar-empty';
-    empty.textContent = 'No tweets collected yet. Scroll through your feed.';
+    empty.textContent = 'No tweets scored yet. Scroll your feed — tweets appear here as they are analyzed.';
     listEl.appendChild(empty);
   } else {
     for (const entry of entries) {
       listEl.appendChild(createTweetCard(entry));
     }
-    renderedCount = entries.length;
-  }
-  countEl.textContent = `${entries.length} tweet${entries.length !== 1 ? 's' : ''}`;
-}
-
-function renderIncremental(): void {
-  if (!listEl || !countEl) return;
-  const entries = getEntries();
-
-  // Existing entries may have changed (e.g., AI score update).
-  // Do a full render when count is unchanged so card content refreshes.
-  if (entries.length === renderedCount) {
-    renderFull();
-    return;
   }
 
-  // If entries were cleared, do a full render
-  if (entries.length < renderedCount) {
-    renderFull();
-    return;
-  }
-
-  // Remove empty message if it exists and we have entries
-  if (entries.length > 0 && renderedCount === 0) {
-    listEl.innerHTML = '';
-  }
-
-  // Append only new entries
-  for (let i = renderedCount; i < entries.length; i++) {
-    listEl.appendChild(createTweetCard(entries[i]));
-  }
-  renderedCount = entries.length;
-  countEl.textContent = `${entries.length} tweet${entries.length !== 1 ? 's' : ''}`;
+  countEl.textContent = `${entries.length}`;
 }

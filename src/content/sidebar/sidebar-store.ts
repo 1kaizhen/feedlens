@@ -12,8 +12,13 @@ export function getEntries(): readonly SidebarTweetEntry[] {
 }
 
 export function addEntry(entry: SidebarTweetEntry): void {
-  // Deduplicate by tweetId
-  if (entries.some((e) => e.tweetId === entry.tweetId)) return;
+  // Deduplicate by tweetId — if already present, update in place instead of re-adding.
+  const existingIdx = entries.findIndex((e) => e.tweetId === entry.tweetId);
+  if (existingIdx !== -1) {
+    entries[existingIdx] = { ...entries[existingIdx], ...entry };
+    notify();
+    return;
+  }
 
   entries.push(entry);
 

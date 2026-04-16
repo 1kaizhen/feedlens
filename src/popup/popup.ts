@@ -5,6 +5,8 @@ const aiAgenda = document.getElementById('ai-agenda') as HTMLTextAreaElement;
 const aiApiKey = document.getElementById('ai-api-key') as HTMLInputElement;
 const runPluginBtn = document.getElementById('run-plugin-btn') as HTMLButtonElement;
 const runPluginStatus = document.getElementById('run-plugin-status')!;
+const toggleEnabled = document.getElementById('toggle-enabled') as HTMLInputElement;
+const toggleSidebar = document.getElementById('toggle-sidebar') as HTMLInputElement;
 
 let preferences: UserPreferences;
 
@@ -40,6 +42,21 @@ async function init(): Promise<void> {
   aiAgenda.value = preferences.aiConfig.agenda;
   aiApiKey.value = preferences.aiConfig.apiKey;
 
+  // Initialize toggle states
+  toggleEnabled.checked = preferences.enabled;
+  toggleSidebar.checked = preferences.sidebarVisible;
+
+  // Live toggle — save immediately so content script reacts right away.
+  toggleEnabled.addEventListener('change', () => {
+    preferences.enabled = toggleEnabled.checked;
+    savePrefs();
+  });
+
+  toggleSidebar.addEventListener('change', () => {
+    preferences.sidebarVisible = toggleSidebar.checked;
+    savePrefs();
+  });
+
   runPluginBtn.addEventListener('click', () => {
     const agenda = aiAgenda.value.trim();
     const apiKey = aiApiKey.value.trim();
@@ -59,6 +76,10 @@ async function init(): Promise<void> {
     preferences.aiConfig.agenda = agenda;
     preferences.aiConfig.apiKey = apiKey;
     preferences.aiConfig.dailyLimit = AI_PAID_DAILY_LIMIT;
+
+    // Reflect state in the toggles too
+    toggleEnabled.checked = true;
+    toggleSidebar.checked = true;
 
     savePrefs();
     runPluginStatus.textContent = 'Saved. Plugin is running with AI.';

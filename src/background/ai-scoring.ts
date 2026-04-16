@@ -124,7 +124,8 @@ export class AiScoringEngine {
 
   /**
    * Canonical AI scoring path: POST to FeedLens backend (see backend/server.js).
-   * Backend returns scores on a 0-10 scale; we normalize to 0-1 for extension internals.
+   * Backend returns scores on a 0-10 scale. That is the universal scale used
+   * throughout the extension — no normalization.
    */
   private async callBackend(
     batch: AiQueueItem[],
@@ -154,7 +155,7 @@ export class AiScoringEngine {
     };
     const validIds = new Set(batch.map((b) => b.tweetId));
 
-    const normalized = (data.results ?? [])
+    const validated = (data.results ?? [])
       .map((r) => {
         const rawScore = typeof r.score === 'number' ? r.score : NaN;
         if (!Number.isFinite(rawScore) || rawScore < 0 || rawScore > 10) return null;
@@ -162,14 +163,15 @@ export class AiScoringEngine {
 
         return {
           id: r.id,
-          score: Math.round((rawScore / 10) * 100) / 100,
+          // Keep backend's 0-10 scale. Round to 1 decimal for clean display.
+          score: Math.round(rawScore * 10) / 10,
           reason: r.reason ?? '',
         };
       })
       .filter((r): r is AiResult => r !== null);
 
     const deduped = new Map<string, AiResult>();
-    for (const item of normalized) {
+    for (const item of validated) {
       deduped.set(item.id, item);
     }
     return Array.from(deduped.values());
