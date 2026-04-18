@@ -9,8 +9,8 @@ import {
   updateAuthorReputation,
   DEFAULT_AI_CONFIG,
 } from '../shared/storage';
-import { RELEVANT_THRESHOLD, UNCERTAIN_THRESHOLD } from '../shared/constants';
-import type { MessageType, ScoreResponse } from '../shared/types';
+import { RELEVANT_THRESHOLD, UNCERTAIN_THRESHOLD, OPENROUTER_API_URL, ELEPHANT_MODEL_ID } from '../shared/constants';
+import type { MessageType, ScoreResponse, SummarizeTweetItem } from '../shared/types';
 
 // AI scoring engine — backend is now the canonical (only) scoring path.
 const aiEngine = new AiScoringEngine(
@@ -123,6 +123,24 @@ async function handleMessage(
       await updateStats(message.payload);
       return { success: true };
 
+    case 'SUMMARIZE_TWEETS': {
+      const prefs = await getPreferences();
+      const config = prefs.aiConfig;
+      if (!config?.enabled || !config.apiKey || !config.agenda.trim()) {
+        return { error: 'AI is not configured. Enable AI and add your OpenRouter API key and agenda in the popup.' };
+      }
+      const { tweets } = message.payload;
+      if (tweets.length === 0) {
+        return { error: 'No tweets to summarize.' };
+      }
+      try {
+        const summary = await generateTweetSummary(tweets, config.agenda, config.apiKey);
+        return { summary };
+      } catch (e) {
+        return { error: `Summary failed: ${String(e)}` };
+      }
+    }
+
     case 'GET_AI_BUDGET': {
       const aiPrefs = await getPreferences();
       const aiCfg = aiPrefs.aiConfig ?? { ...DEFAULT_AI_CONFIG };
@@ -173,6 +191,47 @@ async function maybeEnqueueAi(
         (aiConfig?.dailyLimit ?? 0) - (aiConfig?.requestsUsedToday ?? 0),
     });
   }
+}
+
+async function generateTweetSummary(
+  tweets: SummarizeTweetItem[],
+  agenda: string,
+  apiKey: string
+): Promise<string> {
+  const numbered = tweets
+    .map((t, i) => `[${i + 1}] @${t.authorHandle}: ${t.text.replace(/\n/g, ' ')}`)
+    .join('\n');
+
+  const prompt = `You are summarizing tweets collected for a user interested in: "${agenda}"
+
+Here are the tweets (numbered for citation):
+${numbered}
+
+Write a concise, insightful summary (2–4 short paragraphs) synthesising the key topics, insights, and patterns from these tweets. When referencing a specific tweet inline, use its number like [1] or [2]. Focus on the most relevant and interesting content.
+
+Return only the summary paragraphs with inline citations — no headings, no preamble.`;
+
+  const response = await fetch(OPENROUTER_API_URL, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: ELEPHANT_MODEL_ID,
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  });
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    throw new Error(`OpenRouter ${response.status}: ${body}`);
+  }
+
+  const data = (await response.json()) as {
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+  return data.choices?.[0]?.message?.content?.trim() ?? 'Could not generate summary.';
 }
 
 async function trackStats(score: number): Promise<void> {

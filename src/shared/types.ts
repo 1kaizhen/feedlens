@@ -95,6 +95,12 @@ export interface AuthorReputation {
   reputationScore: number;
 }
 
+export interface SummarizeTweetItem {
+  tweetId: string;
+  text: string;
+  authorHandle: string;
+}
+
 export type MessageType =
   | { type: 'SCORE_TWEET'; payload: TweetData }
   | { type: 'GET_PREFERENCES' }
@@ -104,4 +110,5 @@ export type MessageType =
   | { type: 'UPDATE_STATS'; payload: Partial<SessionStats> }
   | { type: 'CLEAR_CACHE' }
   | { type: 'AI_SCORE_UPDATE'; payload: { tweetId: string; aiScore: number; aiReasoning: string } }
-  | { type: 'GET_AI_BUDGET' };
+  | { type: 'GET_AI_BUDGET' }
+  | { type: 'SUMMARIZE_TWEETS'; payload: { tweets: SummarizeTweetItem[] } };

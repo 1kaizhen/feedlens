@@ -3,7 +3,7 @@ import { getEntries, subscribe, clearEntries } from './sidebar-store';
 import { createTweetCard } from './sidebar-tweet-card';
 import { savePreferences, getPreferences } from '../../shared/storage';
 import { autoScroller } from '../auto-scroll';
-import type { SidebarTweetEntry } from '../../shared/types';
+import type { SidebarTweetEntry, SummarizeTweetItem } from '../../shared/types';
 
 type SortMode = 'score' | 'time';
 
@@ -15,6 +15,11 @@ let autoScrollPauseBtn: HTMLButtonElement | null = null;
 let unsubscribe: (() => void) | null = null;
 let unsubscribeAutoScroll: (() => void) | null = null;
 let sortMode: SortMode = 'score';
+
+// Summary view state
+let summaryMode = false;
+let summaryViewEl: HTMLElement | null = null;
+let summarizeBtn: HTMLButtonElement | null = null;
 
 // Score range filter state
 let scoreMin = 0;
@@ -291,8 +296,14 @@ function createSidebarDOM(): void {
     clearEntries();
   });
 
+  summarizeBtn = document.createElement('button');
+  summarizeBtn.className = 'feedlens-sidebar-text-btn feedlens-summarize-btn';
+  summarizeBtn.textContent = 'Summarize';
+  summarizeBtn.addEventListener('click', enterSummaryMode);
+
   controls.appendChild(sortGroup);
   controls.appendChild(clearBtn);
+  controls.appendChild(summarizeBtn);
 
   // Auto-scroll status bar (hidden by default; shown when auto-scroll is running)
   autoScrollStatusEl = document.createElement('div');
@@ -374,8 +385,192 @@ function renderAutoScrollStatus(status: ReturnType<typeof autoScroller.getStatus
   autoScrollPauseBtn.textContent = status.userPaused ? 'Resume' : 'Pause';
 }
 
+// ── Summary view ────────────────────────────────────────────────────────────
+
+function enterSummaryMode(): void {
+  summaryMode = true;
+  if (listEl) listEl.style.display = 'none';
+  if (summarizeBtn) summarizeBtn.textContent = 'List';
+  summarizeBtn?.removeEventListener('click', enterSummaryMode);
+  summarizeBtn?.addEventListener('click', exitSummaryMode);
+  showSummaryView();
+}
+
+function exitSummaryMode(): void {
+  summaryMode = false;
+  if (listEl) listEl.style.display = '';
+  if (summarizeBtn) summarizeBtn.textContent = 'Summarize';
+  summarizeBtn?.removeEventListener('click', exitSummaryMode);
+  summarizeBtn?.addEventListener('click', enterSummaryMode);
+  if (summaryViewEl) {
+    summaryViewEl.remove();
+    summaryViewEl = null;
+  }
+}
+
+function showSummaryView(): void {
+  if (summaryViewEl) summaryViewEl.remove();
+
+  summaryViewEl = document.createElement('div');
+  summaryViewEl.className = 'feedlens-summary-view';
+
+  // Loading indicator
+  const loading = document.createElement('div');
+  loading.className = 'feedlens-summary-loading';
+  const spinner = document.createElement('span');
+  spinner.className = 'feedlens-summary-spinner';
+  loading.appendChild(spinner);
+  loading.appendChild(document.createTextNode(' Generating summary…'));
+  summaryViewEl.appendChild(loading);
+
+  container!.appendChild(summaryViewEl);
+
+  // Gather top 30 scored tweets
+  const entries = getEntries();
+  const tweetsToSummarize: SummarizeTweetItem[] = [...entries]
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 30)
+    .map((e) => ({ tweetId: e.tweetId, text: e.text, authorHandle: e.authorHandle }));
+
+  chrome.runtime
+    .sendMessage({ type: 'SUMMARIZE_TWEETS', payload: { tweets: tweetsToSummarize } })
+    .then((response: { summary?: string; error?: string }) => {
+      if (!summaryViewEl) return;
+      loading.remove();
+      if (response?.error) {
+        renderSummaryError(summaryViewEl, response.error);
+      } else {
+        renderSummaryContent(summaryViewEl, tweetsToSummarize, response?.summary ?? '');
+      }
+    })
+    .catch(() => {
+      if (!summaryViewEl) return;
+      loading.remove();
+      renderSummaryError(summaryViewEl, 'Failed to reach background. Reload the page and try again.');
+    });
+}
+
+function renderSummaryError(parent: HTMLElement, message: string): void {
+  const err = document.createElement('div');
+  err.className = 'feedlens-summary-error';
+  err.textContent = message;
+  parent.appendChild(err);
+}
+
+function renderSummaryContent(
+  parent: HTMLElement,
+  tweets: SummarizeTweetItem[],
+  summaryText: string
+): void {
+  // Summary text body with inline [N] → superscript references
+  const body = document.createElement('div');
+  body.className = 'feedlens-summary-body';
+
+  const parts = summaryText.split(/(\[\d+\])/g);
+  for (const part of parts) {
+    const refMatch = part.match(/^\[(\d+)\]$/);
+    if (refMatch) {
+      const num = parseInt(refMatch[1], 10);
+      const tweet = tweets[num - 1];
+
+      const sup = document.createElement('sup');
+      sup.className = 'feedlens-ref';
+      sup.textContent = String(num);
+
+      if (tweet) {
+        const tooltip = document.createElement('div');
+        tooltip.className = 'feedlens-ref-tooltip';
+
+        const handleEl = document.createElement('span');
+        handleEl.className = 'feedlens-ref-tooltip-handle';
+        handleEl.textContent = `@${tweet.authorHandle}`;
+        tooltip.appendChild(handleEl);
+
+        const excerptEl = document.createElement('p');
+        excerptEl.className = 'feedlens-ref-tooltip-text';
+        excerptEl.textContent =
+          tweet.text.length > 180 ? tweet.text.slice(0, 180) + '…' : tweet.text;
+        tooltip.appendChild(excerptEl);
+
+        const openLink = document.createElement('a');
+        openLink.className = 'feedlens-ref-tooltip-link';
+        openLink.href = `https://x.com/${tweet.authorHandle}/status/${tweet.tweetId}`;
+        openLink.target = '_blank';
+        openLink.rel = 'noopener noreferrer';
+        openLink.textContent = 'Open tweet →';
+        openLink.addEventListener('click', (e) => e.stopPropagation());
+        tooltip.appendChild(openLink);
+
+        sup.appendChild(tooltip);
+      }
+
+      body.appendChild(sup);
+    } else if (part) {
+      const lines = part.split('\n');
+      lines.forEach((line, i) => {
+        if (line) body.appendChild(document.createTextNode(line));
+        if (i < lines.length - 1) body.appendChild(document.createElement('br'));
+      });
+    }
+  }
+
+  parent.appendChild(body);
+
+  // Collect referenced tweet indices
+  const referencedNums = new Set<number>();
+  for (const part of summaryText.split(/(\[\d+\])/g)) {
+    const m = part.match(/^\[(\d+)\]$/);
+    if (m) referencedNums.add(parseInt(m[1], 10));
+  }
+
+  // Sources list
+  const referencedTweets = tweets
+    .map((t, i) => ({ tweet: t, num: i + 1 }))
+    .filter(({ num }) => referencedNums.has(num));
+
+  if (referencedTweets.length > 0) {
+    const sourcesTitle = document.createElement('div');
+    sourcesTitle.className = 'feedlens-summary-sources-title';
+    sourcesTitle.textContent = 'Sources';
+    parent.appendChild(sourcesTitle);
+
+    const sourcesList = document.createElement('div');
+    sourcesList.className = 'feedlens-summary-sources';
+
+    for (const { tweet, num } of referencedTweets) {
+      const item = document.createElement('div');
+      item.className = 'feedlens-summary-source-item';
+
+      const numEl = document.createElement('sup');
+      numEl.className = 'feedlens-ref-num';
+      numEl.textContent = String(num);
+      item.appendChild(numEl);
+
+      const link = document.createElement('a');
+      link.className = 'feedlens-summary-source-link';
+      link.href = `https://x.com/${tweet.authorHandle}/status/${tweet.tweetId}`;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = `@${tweet.authorHandle}`;
+      link.addEventListener('click', (e) => e.stopPropagation());
+      item.appendChild(link);
+
+      const excerpt = document.createElement('span');
+      excerpt.className = 'feedlens-summary-source-excerpt';
+      excerpt.textContent =
+        tweet.text.length > 80 ? tweet.text.slice(0, 80) + '…' : tweet.text;
+      item.appendChild(excerpt);
+
+      sourcesList.appendChild(item);
+    }
+
+    parent.appendChild(sourcesList);
+  }
+}
+
 function render(): void {
   if (!listEl || !countEl) return;
+  if (summaryMode) return; // don't clobber the summary view
   const allEntries = getEntries();
 
   renderHistogram(allEntries);
