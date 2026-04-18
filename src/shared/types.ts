@@ -42,6 +42,7 @@ export interface UserPreferences {
   blockedKeywords: string[];
   customKeywords: Record<string, { keywords: string[]; contextTerms: string[] }>;
   aiConfig: AiConfig;
+  autoScrollEnabled: boolean;
 }
 
 export interface SidebarTweetEntry {

@@ -499,7 +499,7 @@ body {
 .toggle-row {
   display: flex;
   gap: 8px;
-  margin-bottom: 16px;
+  margin-bottom: 8px;
 }
 
 .toggle-item {
@@ -519,6 +519,24 @@ body {
 
 .toggle-item:hover {
   background: #f1f3f4;
+}
+
+.toggle-item--full {
+  display: flex;
+  width: 100%;
+  margin-bottom: 16px;
+}
+
+.toggle-item-label-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.toggle-sublabel {
+  font-size: 11px;
+  color: #80868b;
+  font-weight: 400;
 }
 
 .toggle-label {

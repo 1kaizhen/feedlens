@@ -20,6 +20,7 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   blockedKeywords: [],
   customKeywords: {},
   aiConfig: { ...DEFAULT_AI_CONFIG },
+  autoScrollEnabled: false,
 };
 
 function normalizePreferences(raw?: Partial<UserPreferences>): UserPreferences {

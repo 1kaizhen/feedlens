@@ -7,6 +7,7 @@ const runPluginBtn = document.getElementById('run-plugin-btn') as HTMLButtonElem
 const runPluginStatus = document.getElementById('run-plugin-status')!;
 const toggleEnabled = document.getElementById('toggle-enabled') as HTMLInputElement;
 const toggleSidebar = document.getElementById('toggle-sidebar') as HTMLInputElement;
+const toggleAutoScroll = document.getElementById('toggle-autoscroll') as HTMLInputElement;
 
 let preferences: UserPreferences;
 
@@ -45,6 +46,7 @@ async function init(): Promise<void> {
   // Initialize toggle states
   toggleEnabled.checked = preferences.enabled;
   toggleSidebar.checked = preferences.sidebarVisible;
+  toggleAutoScroll.checked = preferences.autoScrollEnabled ?? false;
 
   // Live toggle — save immediately so content script reacts right away.
   toggleEnabled.addEventListener('change', () => {
@@ -54,6 +56,11 @@ async function init(): Promise<void> {
 
   toggleSidebar.addEventListener('change', () => {
     preferences.sidebarVisible = toggleSidebar.checked;
+    savePrefs();
+  });
+
+  toggleAutoScroll.addEventListener('change', () => {
+    preferences.autoScrollEnabled = toggleAutoScroll.checked;
     savePrefs();
   });
 

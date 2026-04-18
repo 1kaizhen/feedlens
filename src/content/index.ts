@@ -3,6 +3,7 @@ import { extractTweetData } from './tweet-parser';
 import { injectFeedbackOverlay } from './feedback-overlay';
 import { addEntry, clearEntries, updateEntry } from './sidebar/sidebar-store';
 import { openSidebar, closeSidebar, isSidebarOpen } from './sidebar/sidebar';
+import { autoScroller } from './auto-scroll';
 import type { ScoreResponse, UserPreferences } from '../shared/types';
 
 const processedTweets = new Set<string>();
@@ -39,6 +40,10 @@ async function init(): Promise<void> {
     if (prefs.sidebarVisible) {
       openSidebar();
     }
+
+    if (prefs.autoScrollEnabled && prefs.enabled) {
+      autoScroller.start();
+    }
   } catch (err) {
     console.warn('[FeedLens] Service worker not ready, retrying in 1s...', err);
     setTimeout(init, 1000);
@@ -62,6 +67,13 @@ async function init(): Promise<void> {
         openSidebar();
       } else if (!newPrefs.sidebarVisible && isSidebarOpen()) {
         closeSidebar();
+      }
+
+      // Handle auto-scroll toggle
+      if (newPrefs.autoScrollEnabled && newPrefs.enabled) {
+        autoScroller.start();
+      } else {
+        autoScroller.stop();
       }
 
       // Only reprocess if scoring-relevant prefs changed (not just sidebar visibility).
@@ -198,6 +210,8 @@ function handleAiScoreUpdate(tweetId: string, aiScore: number, aiReasoning: stri
       };
 
   console.log(`[FeedLens] +sidebar card  score=${aiScore.toFixed(1)}/10  ${tweetId}`);
+
+  autoScroller.incrementCollected();
 
   // Always add — sidebar shows all AI-scored tweets; user sorts/filters via UI.
   addEntry({

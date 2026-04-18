@@ -40,13 +40,15 @@ FeedLens is a Chrome Extension (Manifest V3) that filters Twitter/X feeds by top
 └─────────────┘
 ```
 
-**Content Script** (`src/content/`) — Runs on twitter.com/x.com. MutationObserver detects `article[data-testid="tweet"]` elements, extracts tweet data, sends to service worker for scoring, applies CSS classes (dim/hide/relevant) based on score.
+**Content Script** (`src/content/`) — Runs on twitter.com/x.com. MutationObserver detects `article[data-testid="tweet"]` elements, extracts tweet data, sends to service worker for scoring, applies CSS classes (dim/hide/relevant) based on score. Also initialises the `AutoScroller` singleton and starts/stops it based on `UserPreferences.autoScrollEnabled`.
 
-**Sidebar** (`src/content/sidebar/`) — Fixed right panel (380px) showing scored tweets. Uses a pub/sub store pattern (`sidebar-store.ts`) holding up to 500 entries (FIFO, deduplicated by tweetId). The store is in-memory only (cleared on page refresh). `sidebar-tweet-card.ts` renders each tweet with a color-coded score badge. Clicking a card scrolls to the tweet in the main feed. Visibility is toggled via `UserPreferences.sidebarVisible` and persisted to storage.
+**Auto-Scroll** (`src/content/auto-scroll.ts`) — `AutoScroller` class (exported as singleton `autoScroller`) that drives automatic feed scrolling. Scrolls 50–100px every 200–500ms in an 8-second active window, then pauses for 2 seconds, then repeats. Pauses automatically on any user interaction (mousemove, click, wheel, keydown, touch) and resumes 2–4s after the last event. Also pauses when the tab is hidden. Exposes `start()`, `stop()`, `toggleUserPause()`, `incrementCollected()`, and a `subscribe()` pub/sub for status updates. Enabled via `UserPreferences.autoScrollEnabled` toggle in the popup.
+
+**Sidebar** (`src/content/sidebar/`) — Fixed right panel (380px) showing scored tweets. Uses a pub/sub store pattern (`sidebar-store.ts`) holding up to 500 entries (FIFO, deduplicated by tweetId). The store is in-memory only (cleared on page refresh). `sidebar-tweet-card.ts` renders each tweet with a color-coded score badge. Clicking a card scrolls to the tweet in the main feed. Visibility is toggled via `UserPreferences.sidebarVisible` and persisted to storage. The header contains a **score range filter** — a histogram (10 bars for buckets 0–1, 1–2, …, 9–10) above a dual-handle range slider (0–10, step 1) with editable Min/Max number inputs. Filtering is applied in-memory on every render; the count badge switches to "X / Y" format when a range is active. When auto-scroll is running, a status bar shows "Auto-collecting · N scored" with a pulsing dot and a Pause/Resume button.
 
 **Service Worker** (`src/background/`) — Message hub. Scores tweets using keyword matching against selected topics. Uses an in-memory LRU cache (2000 entries, lost on SW sleep — acceptable). Tracks session stats. Also manages the AI scoring engine and feedback-driven learning.
 
-**Popup** (`src/popup/`) — Settings UI. Topic chip selection, dim/hide mode toggle, power switch, stats display. All changes written to `chrome.storage.local`; content scripts react via `chrome.storage.onChanged`.
+**Popup** (`src/popup/`) — Settings UI. Three toggles: Extension on/off, Sidebar on/off, Auto-scroll on/off. Agenda text and OpenRouter API key inputs. "Run Plugin" button enables everything at once. All changes written to `chrome.storage.local`; content scripts react via `chrome.storage.onChanged`.
 
 **Shared** (`src/shared/`) — Types, constants (score thresholds: relevant ≥ 0.7, uncertain ≥ 0.3), and storage wrapper.
 
@@ -103,6 +105,11 @@ Weights are keyed as `"topicId::keyword"` in `KeywordWeights` (a `Record<string,
 - Sidebar uses CSS class `feedlens-sidebar-active` on `<body>` to shift the main feed layout
 - `UserPreferences.blockedKeywords` — global blocklist; any match forces score to 0
 - `UserPreferences.customKeywords` — per-topic user-defined primary keywords and context terms, merged with built-in `topic-keywords.ts` at scoring time
+- `UserPreferences.autoScrollEnabled` — persisted boolean; content script starts/stops `autoScroller` singleton on change
+- Auto-scroll does NOT listen to `scroll` events (would self-trigger); uses `wheel` + pointer events only
+- Auto-scroll cycle: 8s active (`SCROLL_ACTIVE_MS`) → 2s break (`SCROLL_BREAK_MS`) → repeat; cycle clock resets after any interaction-pause or manual resume
+- `autoScroller.incrementCollected()` is called in `handleAiScoreUpdate` so the sidebar count reflects AI-scored tweets, not raw scrolled tweets
+- Sidebar score range filter (`scoreMin`/`scoreMax`, default 0–10) lives as module-level state in `sidebar.ts`; it filters the already-sorted entries list on every `render()` call and drives histogram bar heights and active-color highlights. The dual-handle slider is two overlapping `<input type="range">` elements with transparent tracks; z-index swaps dynamically to keep the correct thumb grabbable when they are close together.
 
 ## Testing
 
