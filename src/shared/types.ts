@@ -101,6 +101,14 @@ export interface SummarizeTweetItem {
   authorHandle: string;
 }
 
+export interface Session {
+  id: string;
+  name: string;
+  agenda: string;
+  createdAt: number;
+  tweetCount: number;
+}
+
 export type MessageType =
   | { type: 'SCORE_TWEET'; payload: TweetData }
   | { type: 'GET_PREFERENCES' }

@@ -8,48 +8,80 @@
 </head>
 <body>
   <div class="popup">
-    <header class="header">
-      <h1 class="title">FeedLens AI</h1>
-    </header>
+    <!-- Page 1: Session Selector -->
+    <div id="page-sessions">
+      <header class="header">
+        <h1 class="title">FeedLens AI</h1>
+      </header>
+      <div id="session-list" class="session-list"></div>
+      <button id="create-session-btn" class="create-session-btn">+ Create New Session</button>
 
-    <section class="toggle-row">
-      <label class="toggle-item">
-        <span class="toggle-label">Extension</span>
+      <section class="api-key-section">
+        <label class="minimal-label" for="ai-api-key">OpenRouter API key</label>
+        <input type="password" id="ai-api-key" class="text-input" placeholder="sk-or-..." />
+      </section>
+    </div>
+
+    <!-- Page 2: Session Detail -->
+    <div id="page-detail" class="hidden">
+      <header class="header header-detail">
+        <button id="back-btn" class="back-btn" aria-label="Back">&larr;</button>
+        <h1 id="detail-title" class="title">New Session</h1>
+      </header>
+
+      <section class="session-name-section">
+        <label class="minimal-label" for="session-name">Session name</label>
+        <input type="text" id="session-name" class="text-input" placeholder="e.g. Claude updates" />
+      </section>
+
+      <section class="toggle-row">
+        <label class="toggle-item">
+          <span class="toggle-label">Extension</span>
+          <span class="switch">
+            <input type="checkbox" id="toggle-enabled" />
+            <span class="switch-slider"></span>
+          </span>
+        </label>
+        <label class="toggle-item">
+          <span class="toggle-label">Sidebar</span>
+          <span class="switch">
+            <input type="checkbox" id="toggle-sidebar" />
+            <span class="switch-slider"></span>
+          </span>
+        </label>
+      </section>
+
+      <label class="toggle-item toggle-item--full">
+        <div class="toggle-item-label-group">
+          <span class="toggle-label">Auto-scroll</span>
+          <span class="toggle-sublabel">Scrolls your feed automatically to collect tweets</span>
+        </div>
         <span class="switch">
-          <input type="checkbox" id="toggle-enabled" />
+          <input type="checkbox" id="toggle-autoscroll" />
           <span class="switch-slider"></span>
         </span>
       </label>
-      <label class="toggle-item">
-        <span class="toggle-label">Sidebar</span>
-        <span class="switch">
-          <input type="checkbox" id="toggle-sidebar" />
-          <span class="switch-slider"></span>
-        </span>
-      </label>
-    </section>
 
-    <label class="toggle-item toggle-item--full">
-      <div class="toggle-item-label-group">
-        <span class="toggle-label">Auto-scroll</span>
-        <span class="toggle-sublabel">Scrolls your feed automatically to collect tweets</span>
-      </div>
-      <span class="switch">
-        <input type="checkbox" id="toggle-autoscroll" />
-        <span class="switch-slider"></span>
-      </span>
-    </label>
+      <section class="search-collect">
+        <label class="minimal-label" for="search-query">Search & Collect</label>
+        <div class="search-collect-row">
+          <input type="text" id="search-query" class="text-input" placeholder="e.g. React Server Components" />
+          <button id="search-btn" class="add-btn">Search</button>
+        </div>
+        <p id="search-status" class="run-plugin-status" aria-live="polite"></p>
+      </section>
 
-    <section class="minimal-ai">
-      <label class="minimal-label" for="ai-agenda">What to search</label>
-      <textarea id="ai-agenda" class="ai-agenda" placeholder="e.g. React, TypeScript, and UI/UX engineering" rows="4"></textarea>
+      <section class="minimal-ai">
+        <label class="minimal-label" for="ai-agenda">What to search</label>
+        <textarea id="ai-agenda" class="ai-agenda" placeholder="e.g. React, TypeScript, and UI/UX engineering" rows="4"></textarea>
 
-      <label class="minimal-label" for="ai-api-key">OpenRouter API key</label>
-      <input type="password" id="ai-api-key" class="text-input" placeholder="sk-or-..." />
-
-      <button id="run-plugin-btn" class="run-plugin-btn">Run Plugin</button>
-      <p id="run-plugin-status" class="run-plugin-status" aria-live="polite"></p>
-    </section>
+        <div class="detail-actions">
+          <button id="save-run-btn" class="run-plugin-btn">Save & Run</button>
+          <button id="delete-session-btn" class="delete-session-btn hidden">Delete Session</button>
+        </div>
+        <p id="run-plugin-status" class="run-plugin-status" aria-live="polite"></p>
+      </section>
+    </div>
   </div>
 
   <script type="module" src="popup.ts"></script>

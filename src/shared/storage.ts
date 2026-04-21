@@ -1,5 +1,5 @@
-import type { UserPreferences, SessionStats, FeedbackEntry, KeywordWeights, AuthorReputation, AiConfig } from './types';
-import { MAX_FEEDBACK_ENTRIES, MAX_AUTHOR_ENTRIES, AI_FREE_DAILY_LIMIT } from './constants';
+import type { UserPreferences, SessionStats, FeedbackEntry, KeywordWeights, AuthorReputation, AiConfig, SidebarTweetEntry, Session } from './types';
+import { MAX_FEEDBACK_ENTRIES, MAX_AUTHOR_ENTRIES, AI_FREE_DAILY_LIMIT, MAX_SIDEBAR_ENTRIES, SIDEBAR_STORAGE_KEY, SESSIONS_STORAGE_KEY, ACTIVE_SESSION_STORAGE_KEY, SESSION_ENTRIES_PREFIX, MAX_SESSIONS } from './constants';
 
 export const DEFAULT_AI_CONFIG: AiConfig = {
   enabled: false,
@@ -107,6 +107,72 @@ export async function saveKeywordWeights(weights: KeywordWeights): Promise<void>
 export async function getAuthorReputations(): Promise<Record<string, AuthorReputation>> {
   const result = await chrome.storage.local.get('authorReputations');
   return (result.authorReputations as Record<string, AuthorReputation> | undefined) ?? {};
+}
+
+export async function getSidebarEntries(): Promise<SidebarTweetEntry[]> {
+  const result = await chrome.storage.local.get(SIDEBAR_STORAGE_KEY);
+  return (result[SIDEBAR_STORAGE_KEY] as SidebarTweetEntry[] | undefined) ?? [];
+}
+
+export async function saveSidebarEntries(entries: SidebarTweetEntry[]): Promise<void> {
+  const capped = entries.length > MAX_SIDEBAR_ENTRIES
+    ? entries.slice(entries.length - MAX_SIDEBAR_ENTRIES)
+    : entries;
+  await chrome.storage.local.set({ [SIDEBAR_STORAGE_KEY]: capped });
+}
+
+export async function clearSidebarEntries(): Promise<void> {
+  await chrome.storage.local.remove(SIDEBAR_STORAGE_KEY);
+}
+
+// --- Session management ---
+
+export async function getSessions(): Promise<Session[]> {
+  const result = await chrome.storage.local.get(SESSIONS_STORAGE_KEY);
+  return (result[SESSIONS_STORAGE_KEY] as Session[] | undefined) ?? [];
+}
+
+export async function saveSessions(sessions: Session[]): Promise<void> {
+  const capped = sessions.length > MAX_SESSIONS
+    ? sessions.slice(sessions.length - MAX_SESSIONS)
+    : sessions;
+  await chrome.storage.local.set({ [SESSIONS_STORAGE_KEY]: capped });
+}
+
+export async function getActiveSessionId(): Promise<string | null> {
+  const result = await chrome.storage.local.get(ACTIVE_SESSION_STORAGE_KEY);
+  return (result[ACTIVE_SESSION_STORAGE_KEY] as string | undefined) ?? null;
+}
+
+export async function setActiveSessionId(id: string | null): Promise<void> {
+  await chrome.storage.local.set({ [ACTIVE_SESSION_STORAGE_KEY]: id });
+}
+
+export async function getSessionSidebarEntries(sessionId: string): Promise<SidebarTweetEntry[]> {
+  const key = SESSION_ENTRIES_PREFIX + sessionId;
+  const result = await chrome.storage.local.get(key);
+  return (result[key] as SidebarTweetEntry[] | undefined) ?? [];
+}
+
+export async function saveSessionSidebarEntries(sessionId: string, entries: SidebarTweetEntry[]): Promise<void> {
+  const key = SESSION_ENTRIES_PREFIX + sessionId;
+  const capped = entries.length > MAX_SIDEBAR_ENTRIES
+    ? entries.slice(entries.length - MAX_SIDEBAR_ENTRIES)
+    : entries;
+  await chrome.storage.local.set({ [key]: capped });
+}
+
+export async function clearSessionSidebarEntries(sessionId: string): Promise<void> {
+  const key = SESSION_ENTRIES_PREFIX + sessionId;
+  await chrome.storage.local.remove(key);
+}
+
+export async function updateSessionTweetCount(sessionId: string, count: number): Promise<void> {
+  const sessions = await getSessions();
+  const idx = sessions.findIndex((s) => s.id === sessionId);
+  if (idx === -1) return;
+  sessions[idx].tweetCount = count;
+  await saveSessions(sessions);
 }
 
 export async function updateAuthorReputation(

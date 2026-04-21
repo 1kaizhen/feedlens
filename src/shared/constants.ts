@@ -11,6 +11,15 @@ export const WEIGHT_FLOOR = 0.3;
 export const WEIGHT_CEILING = 1.5;
 export const MAX_AUTHOR_ENTRIES = 1000;
 export const AUTHOR_SCORE_CAP = 0.15;
+export const MAX_SIDEBAR_ENTRIES = 500;
+export const SIDEBAR_STORAGE_KEY = 'sidebarEntries';
+export const SIDEBAR_SAVE_DEBOUNCE_MS = 2000;
+
+// Sessions
+export const SESSIONS_STORAGE_KEY = 'sessions';
+export const ACTIVE_SESSION_STORAGE_KEY = 'activeSessionId';
+export const SESSION_ENTRIES_PREFIX = 'sidebarEntries_';
+export const MAX_SESSIONS = 50;
 
 // AI scoring
 export const AI_BATCH_SIZE = 10;

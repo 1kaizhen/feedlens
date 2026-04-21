@@ -90,6 +90,49 @@ body.feedlens-sidebar-active {
   color: #0f1419 !important;
 }
 
+.feedlens-sidebar-search {
+  display: flex !important;
+  gap: 6px !important;
+  align-items: center !important;
+}
+
+.feedlens-sidebar-search-input {
+  flex: 1 !important;
+  padding: 6px 10px !important;
+  font-size: 13px !important;
+  border: 1px solid #cfd9de !important;
+  border-radius: 8px !important;
+  outline: none !important;
+  background: #ffffff !important;
+  color: #0f1419 !important;
+  font-family: inherit !important;
+}
+
+.feedlens-sidebar-search-input:focus {
+  border-color: #1d9bf0 !important;
+}
+
+.feedlens-sidebar-search-input::placeholder {
+  color: #8b98a5 !important;
+}
+
+.feedlens-sidebar-search-btn {
+  padding: 6px 14px !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  border: none !important;
+  border-radius: 8px !important;
+  background: #1d9bf0 !important;
+  color: #ffffff !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+  transition: background 0.15s !important;
+}
+
+.feedlens-sidebar-search-btn:hover {
+  background: #1a8cd8 !important;
+}
+
 .feedlens-sidebar-controls {
   display: flex !important;
   align-items: center !important;
@@ -777,6 +820,14 @@ body.feedlens-sidebar-active {
   .feedlens-autoscroll-status--paused {
     background: #16181c !important;
     color: #8b98a5 !important;
+  }
+  .feedlens-sidebar-search-input {
+    background: #16181c !important;
+    border-color: #3e4144 !important;
+    color: #e7e9ea !important;
+  }
+  .feedlens-sidebar-search-input::placeholder {
+    color: #536471 !important;
   }
   .feedlens-score-filter {
     border-top-color: #2f3336 !important;

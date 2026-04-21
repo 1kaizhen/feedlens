@@ -1,10 +1,11 @@
 import './content.css';
 import { extractTweetData } from './tweet-parser';
 import { injectFeedbackOverlay } from './feedback-overlay';
-import { addEntry, clearEntries, updateEntry } from './sidebar/sidebar-store';
-import { openSidebar, closeSidebar, isSidebarOpen } from './sidebar/sidebar';
+import { addEntry, updateEntry, loadEntries, resetEntries, switchSession } from './sidebar/sidebar-store';
+import { openSidebar, closeSidebar, isSidebarOpen, exitSummaryMode } from './sidebar/sidebar';
 import { autoScroller } from './auto-scroll';
 import type { ScoreResponse, UserPreferences } from '../shared/types';
+import { ACTIVE_SESSION_STORAGE_KEY } from '../shared/constants';
 
 const processedTweets = new Set<string>();
 /** Maps tweetId → tweet context so AI results can populate the sidebar when they arrive. */
@@ -36,6 +37,8 @@ async function init(): Promise<void> {
 
     isEnabled = prefs.enabled;
     isAiEnabled = Boolean(prefs.aiConfig?.enabled && prefs.aiConfig?.agenda?.trim() && prefs.aiConfig?.apiKey);
+
+    await loadEntries();
 
     if (prefs.sidebarVisible) {
       openSidebar();
@@ -80,6 +83,12 @@ async function init(): Promise<void> {
       if (wasEnabled !== isEnabled || wasAiEnabled !== isAiEnabled) {
         reprocessAll();
       }
+    }
+
+    if (changes[ACTIVE_SESSION_STORAGE_KEY]) {
+      const newSessionId = changes[ACTIVE_SESSION_STORAGE_KEY].newValue as string | null;
+      exitSummaryMode();
+      switchSession(newSessionId);
     }
   });
 
@@ -229,7 +238,7 @@ function handleAiScoreUpdate(tweetId: string, aiScore: number, aiReasoning: stri
 function reprocessAll(): void {
   processedTweets.clear();
   tweetArticleMap.clear();
-  clearEntries();
+  resetEntries();
 
   // Tell service worker to clear its score cache (prefs changed)
   chrome.runtime.sendMessage({ type: 'CLEAR_CACHE' }).catch(() => {});

@@ -323,7 +323,40 @@ function createSidebarDOM(): void {
   autoScrollStatusEl.appendChild(statusText);
   autoScrollStatusEl.appendChild(autoScrollPauseBtn);
 
+  // Search & Collect row
+  const searchRow = document.createElement('div');
+  searchRow.className = 'feedlens-sidebar-search';
+
+  const searchInput = document.createElement('input');
+  searchInput.type = 'text';
+  searchInput.className = 'feedlens-sidebar-search-input';
+  searchInput.placeholder = 'Search Twitter…';
+
+  // Pre-fill with current search query if on a search page
+  const urlParams = new URLSearchParams(window.location.search);
+  const currentQuery = urlParams.get('q');
+  if (currentQuery) searchInput.value = currentQuery;
+
+  const searchGoBtn = document.createElement('button');
+  searchGoBtn.className = 'feedlens-sidebar-search-btn';
+  searchGoBtn.textContent = 'Go';
+
+  const doSearch = (): void => {
+    const query = searchInput.value.trim();
+    if (!query) return;
+    window.location.href = `https://x.com/search?q=${encodeURIComponent(query)}&src=typed_query&f=live`;
+  };
+
+  searchGoBtn.addEventListener('click', doSearch);
+  searchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') doSearch();
+  });
+
+  searchRow.appendChild(searchInput);
+  searchRow.appendChild(searchGoBtn);
+
   header.appendChild(headerTop);
+  header.appendChild(searchRow);
   header.appendChild(controls);
   header.appendChild(createScoreFilterDOM());
   header.appendChild(autoScrollStatusEl);
@@ -396,7 +429,7 @@ function enterSummaryMode(): void {
   showSummaryView();
 }
 
-function exitSummaryMode(): void {
+export function exitSummaryMode(): void {
   summaryMode = false;
   if (listEl) listEl.style.display = '';
   if (summarizeBtn) summarizeBtn.textContent = 'Summarize';
