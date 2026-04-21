@@ -16,6 +16,16 @@
       <div id="session-list" class="session-list"></div>
       <button id="create-session-btn" class="create-session-btn">+ Create New Session</button>
 
+      <div id="scan-usage" class="scan-usage hidden">
+        <div class="scan-usage-row">
+          <span id="scan-usage-text" class="scan-usage-text">0 / 2,000 tweets scanned today</span>
+        </div>
+        <div class="scan-usage-bar-track">
+          <div id="scan-usage-fill" class="scan-usage-bar-fill"></div>
+        </div>
+        <p id="scan-limit-msg" class="scan-limit-msg hidden">Daily scan limit reached. Resets tomorrow.</p>
+      </div>
+
       <section class="api-key-section">
         <label class="minimal-label" for="ai-api-key">OpenRouter API key</label>
         <input type="password" id="ai-api-key" class="text-input" placeholder="sk-or-..." />

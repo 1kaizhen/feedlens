@@ -785,3 +785,47 @@ body {
   flex-direction: column;
   gap: 4px;
 }
+
+/* Daily scan usage bar */
+.scan-usage {
+  margin: 0 0 12px 0;
+}
+
+.scan-usage-row {
+  margin-bottom: 5px;
+}
+
+.scan-usage-text {
+  font-size: 11px;
+  color: #5f6368;
+}
+
+.scan-usage-bar-track {
+  height: 5px;
+  background: #e8eaed;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.scan-usage-bar-fill {
+  height: 100%;
+  background: #1a73e8;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+  width: 0%;
+}
+
+.scan-usage-bar-fill--warning {
+  background: #f9ab00;
+}
+
+.scan-usage-bar-fill--limit {
+  background: #d93025;
+}
+
+.scan-limit-msg {
+  margin-top: 6px;
+  font-size: 11px;
+  color: #d93025;
+  font-weight: 600;
+}

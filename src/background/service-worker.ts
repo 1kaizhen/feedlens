@@ -9,7 +9,7 @@ import {
   updateAuthorReputation,
   DEFAULT_AI_CONFIG,
 } from '../shared/storage';
-import { RELEVANT_THRESHOLD, UNCERTAIN_THRESHOLD, OPENROUTER_API_URL, ELEPHANT_MODEL_ID } from '../shared/constants';
+import { RELEVANT_THRESHOLD, UNCERTAIN_THRESHOLD, OPENROUTER_API_URL, ELEPHANT_MODEL_ID, DAILY_SCAN_LIMIT } from '../shared/constants';
 import type { MessageType, ScoreResponse, SummarizeTweetItem } from '../shared/types';
 
 // AI scoring engine — backend is now the canonical (only) scoring path.
@@ -61,6 +61,14 @@ const STUB_SCORE: ScoreResponse = {
   matchedKeywords: [],
 };
 
+/** Returned when the daily scan limit has been reached. */
+const LIMIT_REACHED_SCORE: ScoreResponse = {
+  score: 5,
+  matchedTopics: [],
+  matchedKeywords: [],
+  limitReached: true,
+};
+
 async function handleMessage(
   message: MessageType,
   sender?: chrome.runtime.MessageSender
@@ -68,6 +76,12 @@ async function handleMessage(
   switch (message.type) {
     case 'SCORE_TWEET': {
       const { tweetId, text, hasMedia } = message.payload;
+
+      // Daily scan limit gate — check before any stats increment or AI enqueue
+      const currentStats = await getStats();
+      if (currentStats.scanned >= DAILY_SCAN_LIMIT) {
+        return LIMIT_REACHED_SCORE;
+      }
 
       // Cache check (per-tweet)
       const cached = getCached(tweetId);

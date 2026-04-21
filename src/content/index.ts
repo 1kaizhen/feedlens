@@ -4,8 +4,8 @@ import { injectFeedbackOverlay } from './feedback-overlay';
 import { addEntry, updateEntry, loadEntries, resetEntries, switchSession } from './sidebar/sidebar-store';
 import { openSidebar, closeSidebar, isSidebarOpen, exitSummaryMode } from './sidebar/sidebar';
 import { autoScroller } from './auto-scroll';
-import type { ScoreResponse, UserPreferences } from '../shared/types';
-import { ACTIVE_SESSION_STORAGE_KEY } from '../shared/constants';
+import type { ScoreResponse, UserPreferences, SessionStats } from '../shared/types';
+import { ACTIVE_SESSION_STORAGE_KEY, DAILY_SCAN_LIMIT } from '../shared/constants';
 
 const processedTweets = new Set<string>();
 /** Maps tweetId → tweet context so AI results can populate the sidebar when they arrive. */
@@ -19,6 +19,7 @@ const tweetArticleMap = new Map<
 >();
 let isEnabled = true;
 let isAiEnabled = false;
+let dailyLimitReached = false;
 let processingQueue: Element[] = [];
 let isProcessing = false;
 let observer: MutationObserver | null = null;
@@ -38,13 +39,18 @@ async function init(): Promise<void> {
     isEnabled = prefs.enabled;
     isAiEnabled = Boolean(prefs.aiConfig?.enabled && prefs.aiConfig?.agenda?.trim() && prefs.aiConfig?.apiKey);
 
+    const stats = (await chrome.runtime.sendMessage({ type: 'GET_STATS' })) as SessionStats | undefined;
+    if (stats && stats.scanned >= DAILY_SCAN_LIMIT) {
+      dailyLimitReached = true;
+    }
+
     await loadEntries();
 
     if (prefs.sidebarVisible) {
       openSidebar();
     }
 
-    if (prefs.autoScrollEnabled && prefs.enabled) {
+    if (prefs.autoScrollEnabled && prefs.enabled && !dailyLimitReached) {
       autoScroller.start();
     }
   } catch (err) {
@@ -73,7 +79,7 @@ async function init(): Promise<void> {
       }
 
       // Handle auto-scroll toggle
-      if (newPrefs.autoScrollEnabled && newPrefs.enabled) {
+      if (newPrefs.autoScrollEnabled && newPrefs.enabled && !dailyLimitReached) {
         autoScroller.start();
       } else {
         autoScroller.stop();
@@ -154,6 +160,7 @@ async function processQueue(): Promise<void> {
 }
 
 async function processTweet(article: Element): Promise<void> {
+  if (dailyLimitReached) return;
   if (!isEnabled) return;
 
   const tweetData = extractTweetData(article);
@@ -179,6 +186,14 @@ async function processTweet(article: Element): Promise<void> {
     })) as ScoreResponse | undefined;
 
     if (!response) return;
+
+    if (response.limitReached && !dailyLimitReached) {
+      dailyLimitReached = true;
+      autoScroller.stop();
+      window.dispatchEvent(new CustomEvent('feedlens:limit-reached'));
+    }
+
+    if (dailyLimitReached) return;
 
     // Update with matched topics/keywords (still empty in AI-only mode, but future-proof).
     tweetArticleMap.set(tweetData.tweetId, {

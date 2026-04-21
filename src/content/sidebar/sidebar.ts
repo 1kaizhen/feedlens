@@ -21,6 +21,9 @@ let summaryMode = false;
 let summaryViewEl: HTMLElement | null = null;
 let summarizeBtn: HTMLButtonElement | null = null;
 
+// Daily limit banner state
+let isLimitReached = false;
+
 // Score range filter state
 let scoreMin = 0;
 let scoreMax = 10;
@@ -40,6 +43,7 @@ export function openSidebar(): void {
     document.body.classList.add('feedlens-sidebar-active');
   });
   render();
+  if (isLimitReached) showLimitBanner();
   if (!unsubscribe) {
     unsubscribe = subscribe(render);
   }
@@ -368,6 +372,19 @@ function createSidebarDOM(): void {
   container.appendChild(header);
   container.appendChild(listEl);
   document.body.appendChild(container);
+
+  window.addEventListener('feedlens:limit-reached', () => {
+    isLimitReached = true;
+    showLimitBanner();
+  });
+}
+
+function showLimitBanner(): void {
+  if (!listEl || listEl.querySelector('.feedlens-limit-banner')) return;
+  const banner = document.createElement('div');
+  banner.className = 'feedlens-limit-banner';
+  banner.textContent = 'Daily scan limit reached (2,000 tweets). Auto-scroll stopped. Resets tomorrow.';
+  listEl.prepend(banner);
 }
 
 function makeSortBtn(label: string, mode: SortMode): HTMLButtonElement {

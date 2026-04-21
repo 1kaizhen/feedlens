@@ -1,5 +1,5 @@
-import type { UserPreferences, Session } from '../shared/types';
-import { AI_FREE_DAILY_LIMIT, AI_PAID_DAILY_LIMIT } from '../shared/constants';
+import type { UserPreferences, Session, SessionStats } from '../shared/types';
+import { AI_FREE_DAILY_LIMIT, AI_PAID_DAILY_LIMIT, DAILY_SCAN_LIMIT } from '../shared/constants';
 import {
   getSessions,
   saveSessions,
@@ -18,6 +18,10 @@ const detailTitle = document.getElementById('detail-title')!;
 
 // --- Global elements (sessions page) ---
 const aiApiKey = document.getElementById('ai-api-key') as HTMLInputElement;
+const scanUsageEl = document.getElementById('scan-usage')!;
+const scanUsageTextEl = document.getElementById('scan-usage-text')!;
+const scanUsageFillEl = document.getElementById('scan-usage-fill') as HTMLElement;
+const scanLimitMsgEl = document.getElementById('scan-limit-msg')!;
 
 // --- Detail elements ---
 const sessionNameInput = document.getElementById('session-name') as HTMLInputElement;
@@ -47,6 +51,19 @@ function showSessionsPage(): void {
   runPluginStatus.textContent = '';
   aiApiKey.value = preferences.aiConfig.apiKey;
   renderSessionList();
+  renderScanUsage();
+}
+
+async function renderScanUsage(): Promise<void> {
+  const stats = (await chrome.runtime.sendMessage({ type: 'GET_STATS' })) as SessionStats | undefined;
+  if (!stats) return;
+  const pct = Math.min(100, Math.round((stats.scanned / DAILY_SCAN_LIMIT) * 100));
+  scanUsageEl.classList.remove('hidden');
+  scanUsageTextEl.textContent = `${stats.scanned.toLocaleString()} / ${DAILY_SCAN_LIMIT.toLocaleString()} tweets scanned today · ${pct}%`;
+  scanUsageFillEl.style.width = `${pct}%`;
+  scanUsageFillEl.classList.toggle('scan-usage-bar-fill--warning', pct >= 75 && pct < 100);
+  scanUsageFillEl.classList.toggle('scan-usage-bar-fill--limit', pct >= 100);
+  scanLimitMsgEl.classList.toggle('hidden', stats.scanned < DAILY_SCAN_LIMIT);
 }
 
 function showDetailPage(session: Session | null): void {

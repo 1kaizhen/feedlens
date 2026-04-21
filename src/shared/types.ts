@@ -17,6 +17,8 @@ export interface ScoreResponse {
   /** AI relevance on the universal 0-10 scale (1 decimal place). */
   aiScore?: number;
   aiReasoning?: string;
+  /** True when the daily scan limit has been reached; no further scanning will occur. */
+  limitReached?: boolean;
 }
 
 export interface AiConfig {

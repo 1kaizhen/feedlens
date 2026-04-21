@@ -5,6 +5,7 @@ export const RELEVANT_THRESHOLD = 7;
 export const UNCERTAIN_THRESHOLD = 3;
 
 export const MAX_CACHE_SIZE = 2000;
+export const DAILY_SCAN_LIMIT = 2000;
 export const MAX_FEEDBACK_ENTRIES = 500;
 export const MIN_FEEDBACK_FOR_WEIGHT = 3;
 export const WEIGHT_FLOOR = 0.3;
